@@ -7,6 +7,7 @@
   "spirv_tools_commit": "4d2f0b40bfe290dea6c6904dafdf7fd8328ba346",
   "spirv_headers_commit": "3f17b2af6784bfa2c5aa5dbb8e0e74a607dd8b3b",
   "ndk_version": "28.2.13676358",
+  "ndk_archive_sha1": "a7b54a5de87fecd125a17d54f73c446199e72a64",
   "android_api": 35,
   "patches": ["019-anb-import-fd-discovery.patch"],
   "open_gl_included": false,
