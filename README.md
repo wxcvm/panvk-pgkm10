@@ -16,6 +16,11 @@ Quetta 部分花屏尚未单独定位。这是恢复原厂的兼容处理，未�
 也未修改、禁用 ColorX 系统应用或伪装 Vulkan 扩展支持。
 官方 Android 构建关闭了 OpenGL/EGL/GLES，所以本包仅更新 Vulkan。
 
+随后进行了两次可撤销 ColorX 绕过测试：屏蔽增强库、或保留增强库并精确跳过 Vulkan
+注入，星穹铁道均继续崩溃于系统 `GetSwapchainImagesKHR` 的空 swapchain 路径。
+精确绕过曾短暂显示正常，随后闪退；交换链创建失败原因尚未确认。这些失败方案未加入
+安装包，所有测试绑定已撤销。已知平台的全局替换限制继续保留。
+
 Actions 从固定发布下载，核对 ZIP 和库的 SHA-256、BuildID、AArch64 ABI、API 35、HMI
 及三个 ICD 导出和系统动态依赖；保留二进制原始字节，不修改驱动声明或伪装扩展支持。
 源提交、校验值见 `upstream.json`；上游原始构建记录保留在新包 `upstream/`，本包自己的
