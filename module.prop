@@ -1,0 +1,6 @@
+id=MTK_D8100_Vulkan1.4.Panvk
+name=Dimensity 8100 PanVK (guarded launcher)
+version=1.0.1-guarded
+versionCode=2
+author=wxcvm
+description=PanVK wrapper repair: global replacement OFF by default; optional validated arm64 HAL only. Reboot required.
