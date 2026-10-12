@@ -8,6 +8,8 @@
   "spirv_headers_commit": "3f17b2af6784bfa2c5aa5dbb8e0e74a607dd8b3b",
   "ndk_version": "28.2.13676358",
   "ndk_archive_sha1": "a7b54a5de87fecd125a17d54f73c446199e72a64",
+  "libdrm_version": "2.4.125",
+  "libdrm_archive_sha256": "d4bae92797a50f81a93524762e0410a49cd84cfa0f997795bc0172ac8fb1d96a",
   "android_api": 35,
   "patches": ["019-anb-import-fd-discovery.patch"],
   "open_gl_included": false,
