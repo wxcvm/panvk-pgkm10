@@ -10,7 +10,8 @@ if [ -f "$MODPATH/vulkan.mali.so" ] && [ -f "$MODPATH/driver.sha256" ]; then
     sdk=$(getprop ro.build.version.sdk)
     case "$sdk" in ''|*[!0-9]*) abort 'Cannot read SDK' ;; esac
     [ "$sdk" -ge 35 ] || abort 'PanVK RC3 requires Android 15 or newer'
-    ui_print '- Verified packaged PanVK RC3; 64-bit Vulkan only'
+    ui_print '- Verified packaged PanVK RC3; global replacement OFF'
+    ui_print '- PGKM10 Android 17 global HAL is incompatible; OEM Vulkan will be used'
 elif [ -f "$OLD_MODULE/vulkan.mali.so" ] && [ ! -L "$OLD_MODULE/vulkan.mali.so" ]; then
     cp "$OLD_MODULE/vulkan.mali.so" "$MODPATH/vulkan.mali.so" || abort 'Cannot preserve optional driver binary'
     chmod 644 "$MODPATH/vulkan.mali.so"

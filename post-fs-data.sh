@@ -8,12 +8,19 @@ setting=$(sed -n 's/^enable_global=//p' "$MODDIR/driver.conf" | head -n1 | tr -d
 driver="$MODDIR/vulkan.mali.so"
 target=/vendor/lib64/hw/mt6895/vulkan.mali.so
 fail() { printf 'ERROR: %s; OEM driver preserved\n' "$1" >> "$LOG"; exit 1; }
+# This exact platform failed the RC3 global-HAL runtime comparison. ColorX's
+# constructFragmentShadingRatesInfo calls a missing entrypoint; do not imply
+# that static ELF verification makes this a supported global replacement.
+sdk=$(getprop ro.build.version.sdk)
+model=$(getprop ro.product.model)
+if [ "$sdk" = 37 ] && [ "$model" = PGKM10 ]; then
+    fail 'RC3 global HAL incompatible with PGKM10 Android 17 ColorX; use OEM Vulkan'
+fi
 [ -f "$driver" ] && [ ! -L "$driver" ] && [ -f "$target" ] || fail 'Missing binary or OEM target'
 if [ -f "$MODDIR/driver.sha256" ]; then
     expected=$(cat "$MODDIR/driver.sha256")
     actual=$(sha256sum "$driver" | cut -d' ' -f1)
     [ "$actual" = "$expected" ] || fail 'Packaged driver checksum mismatch'
-    sdk=$(getprop ro.build.version.sdk)
     case "$sdk" in ''|*[!0-9]*) fail 'Cannot determine SDK' ;; esac
     [ "$sdk" -ge 35 ] || fail 'PanVK RC3 needs Android 15+'
 fi
