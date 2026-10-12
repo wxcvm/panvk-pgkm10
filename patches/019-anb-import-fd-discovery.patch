@@ -1,0 +1,156 @@
+From: MoveCertificate contributors
+Subject: [PATCH] android: discover native-buffer DMA-BUF before importing memory
+
+Based on Mesa 5a07217f and PanVK RC3. Apply after the upstream series.
+Source patch only; packaged RC3 is unchanged. Full driver rebuild is pending.
+
+--- a/src/vulkan/runtime/vk_android.c
++++ b/src/vulkan/runtime/vk_android.c
+@@ -207,6 +208,77 @@
+    return VK_SUCCESS;
+ }
+ 
++static VkResult
++vk_android_import_dma_buf_memory(
++   VkDevice device, VkImage image, const native_handle_t *handle,
++   const VkMemoryRequirements *mem_reqs,
++   const VkAllocationCallbacks *alloc, VkDeviceMemory *memory,
++   PFN_vkGetMemoryFdPropertiesKHR get_fd_properties,
++   PFN_vkAllocateMemory allocate_memory)
++{
++   /* Android handles may start with gralloc_extra or carry ashmem metadata.
++    * Query candidates and validate the real import; never assume an index.
++    */
++   if (!handle || handle->numFds <= 0)
++      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
++
++   const VkMemoryDedicatedAllocateInfo dedicated = {
++      .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
++      .image = image,
++   };
++   for (int i = 0; i < handle->numFds; i++) {
++      const int fd = handle->data[i];
++      struct stat st;
++      if (fd < 0 || fstat(fd, &st) < 0 || S_ISCHR(st.st_mode))
++         continue;
++
++      const off_t size = lseek(fd, 0, SEEK_END);
++      if (size <= 0 || (uint64_t)size < mem_reqs->size)
++         continue;
++
++      VkMemoryFdPropertiesKHR properties = {
++         .sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
++      };
++      VkResult result = get_fd_properties(
++         device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, fd,
++         &properties);
++      if (result != VK_SUCCESS)
++         continue;
++
++      const uint32_t types = mem_reqs->memoryTypeBits & properties.memoryTypeBits;
++      if (!types)
++         continue;
++
++      const int imported_fd = os_dupfd_cloexec(fd);
++      if (imported_fd < 0)
++         return errno == EMFILE ? VK_ERROR_TOO_MANY_OBJECTS
++                               : VK_ERROR_OUT_OF_HOST_MEMORY;
++
++      const VkImportMemoryFdInfoKHR import = {
++         .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
++         .pNext = &dedicated,
++         .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
++         .fd = imported_fd,
++      };
++      const VkMemoryAllocateInfo info = {
++         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
++         .pNext = &import,
++         .allocationSize = mem_reqs->size,
++         .memoryTypeIndex = ffs(types) - 1,
++      };
++      VkDeviceMemory candidate = VK_NULL_HANDLE;
++      result = allocate_memory(device, &info, alloc, &candidate);
++      if (result == VK_SUCCESS) {
++         *memory = candidate;
++         return VK_SUCCESS; /* Vulkan now owns imported_fd. */
++      }
++      close(imported_fd); /* Ownership is retained on allocation failure. */
++      if (result != VK_ERROR_INVALID_EXTERNAL_HANDLE)
++         return result;
++   }
++   return VK_ERROR_INVALID_EXTERNAL_HANDLE;
++}
++
+ VkResult
+ vk_android_import_anb_memory(struct vk_device *device,
+                              struct vk_image *image,
+@@ -214,65 +286,13 @@
+                              const VkAllocationCallbacks *alloc)
+ {
+    assert(anb && anb->handle && anb->handle->numFds > 0);
+-
+-   int dma_buf_fd = anb->handle->data[0];
+-
+-   /* Query image memory requirements for size and supported memory types */
+    VkMemoryRequirements mem_reqs;
+    device->dispatch_table.GetImageMemoryRequirements(
+       (VkDevice)device, (VkImage)image, &mem_reqs);
+-
+-   VkMemoryFdPropertiesKHR fd_props = {
+-      .sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
+-   };
+-   VkResult result = device->dispatch_table.GetMemoryFdPropertiesKHR(
+-      (VkDevice)device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+-      dma_buf_fd, &fd_props);
+-   if (result != VK_SUCCESS) {
+-      mesa_loge("GetMemoryFdPropertiesKHR failed");
+-      return result;
+-   }
+-
+-   uint32_t compatible_types = mem_reqs.memoryTypeBits & fd_props.memoryTypeBits;
+-   if (!compatible_types) {
+-      mesa_loge("No compatible AHB mem types (img_reqs=%#b,fd_reqs=%#b)",
+-                 mem_reqs.memoryTypeBits, fd_props.memoryTypeBits);
+-      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+-   }
+-
+-   int dup_fd = os_dupfd_cloexec(dma_buf_fd);
+-   if (dup_fd < 0) {
+-      mesa_loge("os_dupfd_cloexec(%d) failed: %s", dma_buf_fd, strerror(errno));
+-      return (errno == EMFILE) ? VK_ERROR_TOO_MANY_OBJECTS
+-                               : VK_ERROR_OUT_OF_HOST_MEMORY;
+-   }
+-
+-   const VkMemoryDedicatedAllocateInfo ded_alloc = {
+-      .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+-      .pNext = NULL,
+-      .buffer = VK_NULL_HANDLE,
+-      .image = (VkImage)image};
+-
+-   const VkImportMemoryFdInfoKHR import_info = {
+-      .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+-      .pNext = &ded_alloc,
+-      .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+-      .fd = dup_fd,
+-   };
+-   const VkMemoryAllocateInfo alloc_info = {
+-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+-      .pNext = &import_info,
+-      .allocationSize = mem_reqs.size,
+-      .memoryTypeIndex = ffs(compatible_types) - 1,
+-   };
+-   result = device->dispatch_table.AllocateMemory(
+-      (VkDevice)device, &alloc_info, alloc, &image->anb_memory);
+-   if (result != VK_SUCCESS) {
+-      close(dup_fd);
+-      return result;
+-   }
+-
+-   return VK_SUCCESS;
++   return vk_android_import_dma_buf_memory(
++      (VkDevice)device, (VkImage)image, anb->handle, &mem_reqs, alloc,
++      &image->anb_memory, device->dispatch_table.GetMemoryFdPropertiesKHR,
++      device->dispatch_table.AllocateMemory);
+ }
+ 
+ VkResult

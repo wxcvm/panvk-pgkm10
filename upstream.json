@@ -9,5 +9,5 @@
   "package_url": "https://github.com/zenithblue-oss/panvk-kbase-android/releases/download/panvk-kbase-v0.1.0-rc3/PanVK-Kbase-Android-g615-v11-csf-v0.1.0-rc3-5a07217f.adpkg.zip",
   "package_sha256": "4ef95dfd5118f1f7854de97ed342a551971c1e339bea3160566a5725a792c85f",
   "open_gl_included": false,
-  "device_validation": "Upstream tested Mali-G610 MC3; PGKM10 Mali-G610 MC6 / Android 17 global HAL is not yet tested."
+  "device_validation": "PGKM10 Mali-G610 MC6 / SDK 37 global HAL failed. Independent root probe initialized RC3 API 1.4.363 and imported AHB successfully; native-buffer import fails because FD 0 is gralloc_extra. See INVESTIGATION.md; source fix helper tested, full patched driver not built."
 }
