@@ -1,0 +1,13 @@
+{
+  "tag": "panvk-kbase-v0.1.0-rc3",
+  "source_commit": "fd6ed91eff1c8d3a83307a2348b959bb93797011",
+  "source_url": "https://github.com/zenithblue-oss/panvk-kbase-android/tree/fd6ed91eff1c8d3a83307a2348b959bb93797011",
+  "asset_url": "https://github.com/zenithblue-oss/panvk-kbase-android/releases/download/panvk-kbase-v0.1.0-rc3/libvulkan_panfrost-android-aarch64.so",
+  "sha256": "b46b9f0416f207a05482349dffb37b6f3d84c20762151c623774831ce3939445",
+  "build_id": "4ec75e25deca57c27fb1e0872fdbf58473d41527",
+  "minimum_sdk": 35,
+  "package_url": "https://github.com/zenithblue-oss/panvk-kbase-android/releases/download/panvk-kbase-v0.1.0-rc3/PanVK-Kbase-Android-g615-v11-csf-v0.1.0-rc3-5a07217f.adpkg.zip",
+  "package_sha256": "4ef95dfd5118f1f7854de97ed342a551971c1e339bea3160566a5725a792c85f",
+  "open_gl_included": false,
+  "device_validation": "Upstream tested Mali-G610 MC3; PGKM10 Mali-G610 MC6 / Android 17 global HAL is not yet tested."
+}

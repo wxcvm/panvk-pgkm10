@@ -1,14 +1,22 @@
 #!/system/bin/sh
 MODDIR=${0%/*}
 LOG="$MODDIR/driver.log"
-printf 'PanVK guarded launcher: global replacement OFF\n' > "$LOG"
+printf 'PanVK guarded launcher: starting\n' > "$LOG"
 chmod 600 "$LOG"
 setting=$(sed -n 's/^enable_global=//p' "$MODDIR/driver.conf" | head -n1 | tr -d '\r')
-[ "$setting" = 1 ] || exit 0
+[ "$setting" = 1 ] || { printf 'Global replacement OFF; OEM Vulkan retained\n' >> "$LOG"; exit 0; }
 driver="$MODDIR/vulkan.mali.so"
 target=/vendor/lib64/hw/mt6895/vulkan.mali.so
 fail() { printf 'ERROR: %s; OEM driver preserved\n' "$1" >> "$LOG"; exit 1; }
 [ -f "$driver" ] && [ ! -L "$driver" ] && [ -f "$target" ] || fail 'Missing binary or OEM target'
+if [ -f "$MODDIR/driver.sha256" ]; then
+    expected=$(cat "$MODDIR/driver.sha256")
+    actual=$(sha256sum "$driver" | cut -d' ' -f1)
+    [ "$actual" = "$expected" ] || fail 'Packaged driver checksum mismatch'
+    sdk=$(getprop ro.build.version.sdk)
+    case "$sdk" in ''|*[!0-9]*) fail 'Cannot determine SDK' ;; esac
+    [ "$sdk" -ge 35 ] || fail 'PanVK RC3 needs Android 15+'
+fi
 # ELF magic, class=64, little endian, ET_DYN, e_machine=AArch64 (183).
 header=$(od -An -tx1 -N20 "$driver" | tr -d ' \n')
 case "$header" in 7f454c460201*0300b700) ;; *) fail 'Driver must be an AArch64 shared library' ;; esac
