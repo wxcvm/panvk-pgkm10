@@ -23,8 +23,22 @@ Quetta 部分花屏尚未单独定位。这是恢复原厂的兼容处理，未�
 
 后续独立检查已复现系统 native-buffer 路径误把 `gralloc_extra` 当作 DMA-BUF 的错误；
 同一缓冲区走 AHB 路径可以成功导入。已准备 FD 搜索源码补丁，并在本机验证其中的
-helper 能导入真实 GPU 内存、拒绝元数据及处理变化的 FD 索引。完整驱动尚未重建，
-安装包中的 `.so` 仍未修改；详情及验证边界见 [INVESTIGATION.md](INVESTIGATION.md)。
+helper 能导入真实 GPU 内存、拒绝元数据及处理变化的 FD 索引。RC3-anbfix1 已完整
+重建，实机通过图像导入、GPU 清屏回读及 64 次导入销毁检查。但游戏实际加载 PanVK
+后仍黑屏，独立探针进一步定位到 kbase 错用 DRM 同步复制；RC3-anbfix2 的对应
+修复已通过实机同步导出测试，但导入回归暴露了每轮泄漏一个 FD 的问题。
+RC3-anbfix3 的 waiter 生命周期修复已通过实机回归：64 次同步往返的 FD 数量
+保持 23 → 23，图像导入销毁保持 22 → 22，GPU 像素回读正常。星穹铁道已确认
+实际使用新版 Vulkan 并能显示画面，但用户仍报告闪烁、重影或错位，尚不适合
+作为本机日常全局驱动；浏览器也未通过验证。安装包中的 `.so`
+仍是官方 RC3；详情及验证边界见
+[INVESTIGATION.md](INVESTIGATION.md)。
+
+实验构建使用独立的 [PanVK Actions 工作流](../.github/workflows/panvk-experimental.yml)。
+`PanVK-RC3-anbfix3-experimental` 产物包含 `libvulkan_panfrost.so`、固定源提交、补丁
+及校验记录，是供实机验证的驱动库归档，不是 Root 模块安装包。构建输入见
+`experimental-build.json`，本地构建入口为 `scripts/build-panvk-experimental.sh`，
+所需 Ubuntu / Android NDK 环境见工作流。实验驱动仅提供 Vulkan，未包含 OpenGL。
 
 Actions 从固定发布下载，核对 ZIP 和库的 SHA-256、BuildID、AArch64 ABI、API 35、HMI
 及三个 ICD 导出和系统动态依赖；保留二进制原始字节，不修改驱动声明或伪装扩展支持。
