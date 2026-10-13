@@ -1,0 +1,51 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: release owned sync_file waiters before dropping payloads
+
+Kbase imports duplicate a sync_file FD into an owned waiter. Waiting, resetting,
+signaling or replacing the payload must release that waiter before clearing
+its pointer. A payload move releases only the old destination, transferring
+source ownership without closing it. Timeout keeps the pending waiter alive.
+Apply after the pinned RC3 upstream series.
+
+--- a/src/panfrost/vulkan/panvk_physical_device.c
++++ b/src/panfrost/vulkan/panvk_physical_device.c
+@@ -695,6 +695,7 @@
+ {
+    struct kbase_cpu_sync *ks = container_of(sync, struct kbase_cpu_sync, sync);
+    mtx_lock(&ks->mutex);
++   kbase_sync_file_waiter_free(ks);
+    ks->state = KBASE_CPU_SYNC_SIGNALED;
+    ks->result = VK_SUCCESS;
+    ks->pending_data = NULL;
+@@ -710,6 +711,7 @@
+    struct kbase_cpu_sync *ks = container_of(sync, struct kbase_cpu_sync, sync);
+    mtx_lock(&ks->mutex);
+    assert(ks->state != KBASE_CPU_SYNC_WAITING);
++   kbase_sync_file_waiter_free(ks);
+    ks->state = KBASE_CPU_SYNC_RESET;
+    ks->result = VK_SUCCESS;
+    ks->pending_data = NULL;
+@@ -741,6 +743,7 @@
+     * (e.g. a reused WSI semaphore that was CPU-waited) is legal.  Only an
+     * in-progress wait on the old payload would be a genuine bug. */
+    assert(ks->state != KBASE_CPU_SYNC_WAITING);
++   kbase_sync_file_waiter_free(ks);
+    ks->pending_data = data;
+    ks->pending_wait = wait;
+    memcpy(ks->targets, targets, sizeof(ks->targets));
+@@ -851,6 +854,7 @@
+ 
+          mtx_lock(&ks->mutex);
+          if (result == VK_SUCCESS) {
++            kbase_sync_file_waiter_free(ks);
+             ks->state = KBASE_CPU_SYNC_SIGNALED;
+             ks->pending_data = NULL;
+             ks->pending_wait = NULL;
+@@ -944,6 +948,7 @@
+    assert(ks_src->state != KBASE_CPU_SYNC_WAITING);
+    assert(ks_dst->state != KBASE_CPU_SYNC_WAITING);
+ 
++   kbase_sync_file_waiter_free(ks_dst);
+    ks_dst->state = ks_src->state;
+    ks_dst->result = ks_src->result;
+    ks_dst->pending_data = ks_src->pending_data;
