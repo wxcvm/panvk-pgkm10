@@ -7,4 +7,5 @@ public final class Native {
     static { System.loadLibrary("presentprobe"); }
     public static native String swapchainTest(String driver, Surface surface, String log);
     public static native String swapchainPhase();
+    public static native int swapchainTransform();
 }

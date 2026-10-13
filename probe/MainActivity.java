@@ -114,10 +114,22 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
     private void checkFrame(Bitmap bitmap) {
         int tested = 0, bad = 0;
+        int transform = Native.swapchainTransform();
+        if (transform != 1 && transform != 2 && transform != 4 && transform != 8) {
+            badFrames++;
+            Log.e("MoveCertPresent", "Unsupported calibration transform=" + transform);
+            return;
+        }
         // Upstream draws (-1,-1),(1,-1),(0,1): red triangle over blue clear.
         for (int y = 1; y < 32; y++) for (int x = 1; x < 32; x++) {
             float u = x / 32f, v = y / 32f;
-            float edge = 1f - v - Math.abs(2f * u - 1f);
+            // Android applies the inverse of the declared swapchain preTransform.
+            // Map the displayed pixel back into the original render coordinates.
+            float sx = u, sy = v;
+            if (transform == 2) { sx = 1f - v; sy = u; }
+            if (transform == 4) { sx = 1f - u; sy = 1f - v; }
+            if (transform == 8) { sx = v; sy = 1f - u; }
+            float edge = 1f - sy - Math.abs(2f * sx - 1f);
             if (Math.abs(edge) < 0.06f) continue;
             int color = bitmap.getPixel((int)(u * bitmap.getWidth()), (int)(v * bitmap.getHeight()));
             int r = Color.red(color), g = Color.green(color), b = Color.blue(color);
@@ -126,7 +138,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             if (!okay) bad++;
         }
         if (bad == 0) goodFrames++; else badFrames++;
-        Log.i("MoveCertPresent", "PIXELS checked=" + tested + " mismatches=" + bad);
+        Log.i("MoveCertPresent", "PIXELS transform=" + transform + " checked=" + tested + " mismatches=" + bad);
     }
 
     private void finishResult() {

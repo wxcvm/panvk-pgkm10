@@ -5,6 +5,13 @@ import sys
 source = Path(sys.argv[1])
 text = source.read_text()
 changes = {
+    '#include <stdarg.h>': '#include <stdarg.h>\n#include <stdatomic.h>',
+    'static void *g_icd;': 'static void *g_icd;\nstatic _Atomic int g_surface_transform = 1;',
+    '    if (banner)\n        lg(c, "SWAPCHAIN %ux%u images=%u format=%u", ext.width, ext.height, im.n,\n           (unsigned)c->format);':
+        '    if (banner) {\n'
+        '        g_surface_transform = (int)pre;\n'
+        '        lg(c, "SWAPCHAIN %ux%u images=%u format=%u transform=%u", ext.width, ext.height, im.n,\n'
+        '           (unsigned)c->format, (unsigned)pre);\n    }',
     "VkClearValue clear = {.color = {{t, 0.15f, 1.f - t, 1.f}}};":
         "VkClearValue clear = {.color = {{0.f, 0.f, 1.f, 1.f}}};",
     "for (i = 0; i < frames; i++)\n        if (!draw_frame(c, i))\n            return 0;":
@@ -17,4 +24,13 @@ for old, new in changes.items():
     if text.count(old) != 1:
         raise SystemExit("Pinned probe source no longer matches adaptation")
     text = text.replace(old, new)
+text += '''
+JNIEXPORT jint JNICALL
+Java_dev_zenithblue_panvktest_Native_swapchainTransform(JNIEnv *env, jclass cls)
+{
+    (void)env;
+    (void)cls;
+    return atomic_load(&g_surface_transform);
+}
+'''
 source.write_text(text)

@@ -25,6 +25,8 @@ adb shell am start -n dev.wxcvm.panvkprobe/.MainActivity --es driver system --ez
 
 探针执行 300 帧、调整尺寸、120 帧和 10 次交换链创建/销毁。
 主阶段额外通过 PixelCopy 读取自己的 Surface，检查远离边界的红/蓝像素。
+根据交换链实际声明的 `preTransform`（0/90/180/270 度）映射显示坐标，
+避免将 Android 的正常逆向预旋转误报为像素异常；其他变换显式报失败。
 最终 PASS 要求 JNI 生命周期成功，至少 3 帧像素正确，无异常帧或读回错误。
 55 秒未完成将终止诊断进程。结果保存在 App 内部 `files/native.log` 和
 `files/result.txt`，可通过 `adb shell run-as dev.wxcvm.panvkprobe cat files/result.txt`
