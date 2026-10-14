@@ -1,0 +1,107 @@
+From: MoveCertificate contributors
+Subject: [PATCH] vulkan: add bounded opt-in workload metadata
+
+Android logging is enabled only with debug.mesa.movecert.trace=1.
+Each translation unit emits at most 512 records. Shader contents,
+application payload, network and file output are not recorded.
+Linux builds keep a no-op logger.
+
+--- a/src/panfrost/vulkan/panvk_image.c
++++ b/src/panfrost/vulkan/panvk_image.c
+@@ -14,2 +14,3 @@
+ 
++#include "movecert_trace.h"
+ #include "pan_afbc.h"
+@@ -807,2 +808,9 @@
+    VK_FROM_HANDLE(panvk_device, dev, device);
++   movecert_vk_trace("image", "format=%u extent=%ux%ux%u mips=%u layers=%u samples=%u usage=0x%x flags=0x%x tiling=%u",
++      (unsigned)pCreateInfo->format, pCreateInfo->extent.width,
++      pCreateInfo->extent.height, pCreateInfo->extent.depth,
++      pCreateInfo->mipLevels, pCreateInfo->arrayLayers,
++      (unsigned)pCreateInfo->samples, pCreateInfo->usage,
++      pCreateInfo->flags, (unsigned)pCreateInfo->tiling);
++
+    struct panvk_physical_device *phys_dev =
+--- a/src/vulkan/runtime/vk_render_pass.c
++++ b/src/vulkan/runtime/vk_render_pass.c
+@@ -24,2 +24,3 @@
+ 
++#include "movecert_trace.h"
+ #include "vk_render_pass.h"
+@@ -465,2 +466,20 @@
+    VK_FROM_HANDLE(vk_device, device, _device);
++   movecert_vk_trace("renderpass", "attachments=%u subpasses=%u dependencies=%u",
++      pCreateInfo->attachmentCount, pCreateInfo->subpassCount, pCreateInfo->dependencyCount);
++   for (uint32_t i = 0; i < pCreateInfo->attachmentCount && i < 8; i++) {
++      const VkAttachmentDescription2 *a = &pCreateInfo->pAttachments[i];
++      movecert_vk_trace("attachment", "index=%u format=%u samples=%u load=%u store=%u stencil_load=%u stencil_store=%u initial=%u final=%u",
++         i, (unsigned)a->format, (unsigned)a->samples,
++         (unsigned)a->loadOp, (unsigned)a->storeOp,
++         (unsigned)a->stencilLoadOp, (unsigned)a->stencilStoreOp,
++         (unsigned)a->initialLayout, (unsigned)a->finalLayout);
++   }
++   for (uint32_t i = 0; i < pCreateInfo->subpassCount && i < 8; i++) {
++      const VkSubpassDescription2 *s = &pCreateInfo->pSubpasses[i];
++      movecert_vk_trace("subpass", "index=%u colors=%u inputs=%u resolves=%u depth=%u viewmask=0x%x flags=0x%x",
++         i, s->colorAttachmentCount, s->inputAttachmentCount,
++         (unsigned)(s->pResolveAttachments != NULL),
++         (unsigned)(s->pDepthStencilAttachment != NULL), s->viewMask, s->flags);
++   }
++
+ 
+--- a/src/vulkan/runtime/vk_pipeline.c
++++ b/src/vulkan/runtime/vk_pipeline.c
+@@ -23,2 +23,3 @@
+ 
++#include "movecert_trace.h"
+ #include "vk_pipeline.h"
+@@ -2253,2 +2254,10 @@
+    VK_FROM_HANDLE(vk_pipeline_cache, cache, pipelineCache);
++   for (uint32_t i = 0; i < createInfoCount && i < 8; i++) {
++      const VkGraphicsPipelineCreateInfo *p = &pCreateInfos[i];
++      /* Avoid dereferencing optional state pointers that Vulkan may ignore. */
++      movecert_vk_trace("pipeline", "flags=0x%x stage_count=%u subpass=%u renderpass_present=%u base_index=%d",
++         p->flags, p->stageCount, p->subpass,
++         (unsigned)(p->renderPass != VK_NULL_HANDLE), p->basePipelineIndex);
++   }
++
+    VkResult first_error_or_success = VK_SUCCESS;
+--- /dev/null
++++ b/src/vulkan/runtime/movecert_trace.h
+@@ -0,0 +1,36 @@
++/* SPDX-License-Identifier: MIT
++ * Bounded opt-in workload metadata. No shader or application payload.
++ */
++#ifndef MOVECERT_VK_TRACE_H
++#define MOVECERT_VK_TRACE_H
++#ifdef __ANDROID__
++#include <android/log.h>
++#include <stdarg.h>
++#include <stdatomic.h>
++#include <stdio.h>
++#include <string.h>
++#include <sys/system_properties.h>
++#endif
++static inline void movecert_vk_trace(const char *operation, const char *format, ...)
++{
++#ifdef __ANDROID__
++   char enabled[PROP_VALUE_MAX];
++   if (__system_property_get("debug.mesa.movecert.trace", enabled) <= 0 ||
++       strcmp(enabled, "1") != 0)
++      return;
++   static atomic_uint count;
++   unsigned index = atomic_fetch_add_explicit(&count, 1, memory_order_relaxed);
++   if (index >= 512)
++      return;
++   char text[768];
++   va_list args;
++   va_start(args, format);
++   vsnprintf(text, sizeof(text), format, args);
++   va_end(args);
++   __android_log_print(ANDROID_LOG_INFO, "MoveCertVK", "%s #%u %s", operation, index, text);
++#else
++   (void)operation;
++   (void)format;
++#endif
++}
++#endif
