@@ -186,3 +186,13 @@ init、Zygote 和 WebView 挂载命名空间，开机配置继续为 `enable_glo
 
 另新增 `probe/` 的独立显示诊断 APK 与构建工作流，用同一驱动分别检查直接加载
 和系统 Vulkan loader 路径。实际结果在运行后记录，不能将 APK 构建成功计为测试通过。
+
+显示诊断已在 [Actions](https://github.com/wxcvm/MoveCertificate/actions/runs/38483365961)
+构建，源提交为 `9349355301e864068db18c0a54b70017c30e3b64`，APK SHA-256 为
+`d8b04edbdb37a7f08e876a0975f65dfc047c79988bae440fe5ffd36e4434cc21`。
+原厂对照的首次像素校验按未旋转图形计算，误报异常；实际交换链 `preTransform=2`
+声明 90 度旋转，Android 会应用逆向变换。校验程序改为读取该声明并映射坐标后，
+同一原厂路径完成 300 帧、缩放后 120 帧、10 次创建/销毁，31 帧抽样均零异常，
+无 PixelCopy 错误。原始误报不能作为原厂驱动或 PanVK 缺陷的证据。
+
+诊断进程对照只覆盖简单几何与显示交接；游戏渲染正确性仍需单独验证。
