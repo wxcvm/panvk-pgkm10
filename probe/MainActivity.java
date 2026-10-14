@@ -27,6 +27,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private volatile boolean running;
     private boolean started, copying;
     private int goodFrames, badFrames, copyErrors;
+    private int previousCode = -1, codeChanges, mixedFrames, orderErrors;
     private String nativeResult;
 
     @Override public void onCreate(Bundle state) {
@@ -120,7 +121,24 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             Log.e("MoveCertPresent", "Unsupported calibration transform=" + transform);
             return;
         }
-        // Upstream draws (-1,-1),(1,-1),(0,1): red triangle over blue clear.
+        // Decode the frame from its background, not the CPU's newest submission.
+        // The bottom-left render-space corner stays outside the moving triangle.
+        float anchorU = .05f, anchorV = .95f;
+        if (transform == 2) { anchorU = .95f; anchorV = .95f; }
+        if (transform == 4) { anchorU = .95f; anchorV = .05f; }
+        if (transform == 8) { anchorU = .05f; anchorV = .05f; }
+        int anchor = bitmap.getPixel((int)(anchorU * bitmap.getWidth()), (int)(anchorV * bitmap.getHeight()));
+        int low = Math.round((Color.red(anchor) - 32) / 12f);
+        int high = Math.round((Color.green(anchor) - 32) / 12f);
+        if (low < 0 || low > 15 || high < 0 || high > 15) {
+            badFrames++;
+            Log.e("MoveCertPresent", "Invalid frame code color=" + Integer.toHexString(anchor));
+            return;
+        }
+        int code = low | (high << 4);
+        int expectedR = 32 + low * 12, expectedG = 32 + high * 12, expectedB = 255 - expectedR;
+        float shift = ((code & 7) - 3.5f) * .025f;
+        // Numbered background and matching moving geometry reveal cross-frame mixing.
         for (int y = 1; y < 32; y++) for (int x = 1; x < 32; x++) {
             float u = x / 32f, v = y / 32f;
             // Android applies the inverse of the declared swapchain preTransform.
@@ -129,23 +147,35 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             if (transform == 2) { sx = 1f - v; sy = u; }
             if (transform == 4) { sx = 1f - u; sy = 1f - v; }
             if (transform == 8) { sx = v; sy = 1f - u; }
-            float edge = 1f - sy - Math.abs(2f * sx - 1f);
+            float edge = 1f - sy - Math.abs(2f * (sx - shift) - 1f);
             if (Math.abs(edge) < 0.06f) continue;
             int color = bitmap.getPixel((int)(u * bitmap.getWidth()), (int)(v * bitmap.getHeight()));
             int r = Color.red(color), g = Color.green(color), b = Color.blue(color);
-            boolean okay = edge > 0 ? r > 210 && g < 40 && b < 40 : b > 210 && r < 40 && g < 40;
+            boolean okay = edge > 0 ? r > 210 && g < 40 && b < 40
+                : Math.abs(r - expectedR) <= 5 && Math.abs(g - expectedG) <= 5 && Math.abs(b - expectedB) <= 5;
             tested++;
             if (!okay) bad++;
         }
-        if (bad == 0) goodFrames++; else badFrames++;
-        Log.i("MoveCertPresent", "PIXELS transform=" + transform + " checked=" + tested + " mismatches=" + bad);
+        if (bad == 0) {
+            goodFrames++;
+            if (previousCode >= 0 && previousCode != code) {
+                codeChanges++;
+                // Samples are 150 ms apart. A backwards code is reported for review;
+                // scheduling gaps could also exceed half the 256-frame code cycle.
+                if (((code - previousCode) & 255) > 128) orderErrors++;
+            }
+            previousCode = code;
+        } else { badFrames++; mixedFrames++; }
+        Log.i("MoveCertPresent", "PIXELS code=" + code + " transform=" + transform + " checked=" + tested + " mismatches=" + bad);
     }
 
     private void finishResult() {
         if (copying || nativeResult == null) return;
-        boolean pass = nativeResult.equals("exit:0") && goodFrames >= 3 && badFrames == 0 && copyErrors == 0;
+        boolean pass = nativeResult.equals("exit:0") && goodFrames >= 3 && codeChanges >= 3
+            && badFrames == 0 && copyErrors == 0 && orderErrors == 0;
         String text = "RESULT " + (pass ? "PASS" : "FAIL") + " native=" + nativeResult
-            + " goodFrames=" + goodFrames + " badFrames=" + badFrames + " copyErrors=" + copyErrors;
+            + " goodFrames=" + goodFrames + " badFrames=" + badFrames + " copyErrors=" + copyErrors
+            + " codeChanges=" + codeChanges + " mixedFrames=" + mixedFrames + " orderErrors=" + orderErrors;
         status.setText(text);
         save(text);
     }

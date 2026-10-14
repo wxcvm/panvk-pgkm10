@@ -13,7 +13,11 @@ changes = {
         '        lg(c, "SWAPCHAIN %ux%u images=%u format=%u transform=%u", ext.width, ext.height, im.n,\n'
         '           (unsigned)c->format, (unsigned)pre);\n    }',
     "VkClearValue clear = {.color = {{t, 0.15f, 1.f - t, 1.f}}};":
-        "VkClearValue clear = {.color = {{0.f, 0.f, 1.f, 1.f}}};",
+        "unsigned code = (unsigned)index & 255u;\n"
+        "    float red = (32.f + (code & 15u) * 12.f) / 255.f;\n"
+        "    float green = (32.f + (code >> 4) * 12.f) / 255.f;\n"
+        "    VkClearValue clear = {.color = {{red, green, 1.f - red, 1.f}}};\n"
+        "    vp.x = ((float)(code & 7u) - 3.5f) * 0.025f * vp.width;",
     "for (i = 0; i < frames; i++)\n        if (!draw_frame(c, i))\n            return 0;":
         "for (i = 0; i < frames; i++) {\n"
         "        if (!draw_frame(c, i)) return 0;\n"
