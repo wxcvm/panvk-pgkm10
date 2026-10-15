@@ -1,0 +1,45 @@
+From: MoveCertificate contributors
+Subject: [PATCH] android: add opt-in swapchain allocation diagnostic
+
+MOVECERT_WSI_CPU=true (Android debug.mesa.movecert.wsi.cpu=true)
+requests CPU-readable swapchain buffers through both gralloc usage entrypoints.
+The option defaults to false and leaves ordinary GPU usage requirements intact.
+It does not assume the allocator returns linear memory, reinterpret a compressed
+buffer as linear, alter display composition, or enable global installation.
+Inspect the actual allocation modifier before drawing conclusions.
+
+--- a/src/vulkan/runtime/vk_android.c
++++ b/src/vulkan/runtime/vk_android.c
+@@ -41,6 +41,7 @@
+ #include "util/log.h"
+ #include "util/os_file.h"
+ #include "util/u_gralloc/u_gralloc.h"
++#include "util/u_debug.h"
+ 
+ #include <hardware/gralloc.h>
+ #include <hardware/hardware.h>
+@@ -455,6 +456,14 @@
+ 
+    if (!gralloc_usage)
+       return VK_ERROR_FORMAT_NOT_SUPPORTED;
++
++   /* Diagnostic only: ask the allocator for CPU-readable swapchain buffers.
++    * Whether this produces a linear allocation is vendor-specific; verify the
++    * imported modifier. Preserve all GPU usage bits and never change an
++    * already allocated buffer's advertised layout.
++    */
++   if (debug_get_bool_option("MOVECERT_WSI_CPU", false))
++      gralloc_usage |= GRALLOC_USAGE_SW_READ_OFTEN;
+ 
+    *out_gralloc_usage = gralloc_usage;
+ 
+@@ -661,6 +670,9 @@
+       *grallocProducerUsage |= GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET;
+    if (gralloc_usage & GRALLOC_USAGE_HW_TEXTURE)
+       *grallocConsumerUsage |= GRALLOC1_CONSUMER_USAGE_GPU_TEXTURE;
++   if ((gralloc_usage & GRALLOC_USAGE_SW_READ_MASK) ==
++       GRALLOC_USAGE_SW_READ_OFTEN)
++      *grallocConsumerUsage |= GRALLOC1_CONSUMER_USAGE_CPU_READ_OFTEN;
+ 
+    /* for front buffer rendering */
+    if (swapchainImageUsage & VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID)

@@ -1,5 +1,5 @@
 {
-  "name": "RC3-anbfix3-trace1",
+  "name": "RC3-anbfix3-wsi1",
   "status": "diagnostic only; game rendering issue unresolved",
   "panvk_source_commit": "fd6ed91eff1c8d3a83307a2348b959bb93797011",
   "mesa_commit": "5a07217f034b3e50d8c7c7794f97a2df1742613b",
@@ -15,7 +15,8 @@
     "019-anb-import-fd-discovery.patch",
     "020-kbase-disable-drm-sync-payload-copy.patch",
     "021-kbase-sync-file-waiter-lifetime.patch",
-    "../diagnostics/022-bounded-workload-trace.patch"
+    "../diagnostics/022-bounded-workload-trace.patch",
+    "../diagnostics/023-swapchain-allocation-diagnostic.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false
