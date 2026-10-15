@@ -1,0 +1,46 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: diagnose native-buffer presentation cache visibility
+
+Default-off MOVECERT_WSI_FLUSH requests host-domain cache operations at native
+Android buffer PRESENT_SRC boundaries, preserving allocation and display mode.
+This is a diagnostic hypothesis, not a validated production fix.
+
+--- a/src/panfrost/vulkan/csf/panvk_vX_cmd_buffer.c
++++ b/src/panfrost/vulkan/csf/panvk_vX_cmd_buffer.c
+@@ -37,6 +37,8 @@
+ #include "pan_samples.h"
+ 
+ #include "util/bitscan.h"
++#include "util/u_debug.h"
++#include "util/log.h"
+ #include "vk_descriptor_update_template.h"
+ #include "vk_format.h"
+ #include "vk_synchronization.h"
+@@ -549,6 +551,27 @@
+       normalize_dependency(&src, &dst, barrier->srcQueueFamilyIndex,
+                            barrier->dstQueueFamilyIndex);
+ 
++      /* Diagnostic: native-buffer presentation crosses into a foreign
++       * display engine which may not be coherent with the GPU L2 cache.
++       * Use the existing host-domain cache operations at this boundary.
++       * The option is off unless explicitly requested for a controlled test.
++       */
++      VK_FROM_HANDLE(panvk_image, image, barrier->image);
++      if ((vk_image_is_android_native_buffer(&image->vk) ||
++           vk_image_is_android_native_buffer_alias(&image->vk)) &&
++          debug_get_bool_option("MOVECERT_WSI_FLUSH", false)) {
++         if (barrier->oldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
++            src = (struct panvk_sync_scope){VK_PIPELINE_STAGE_2_HOST_BIT,
++                                           VK_ACCESS_2_HOST_WRITE_BIT};
++            mesa_logi_once("MoveCertWSI: native PRESENT acquire cache invalidation enabled");
++         }
++         if (barrier->newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
++            dst = (struct panvk_sync_scope){VK_PIPELINE_STAGE_2_HOST_BIT,
++                                           VK_ACCESS_2_HOST_READ_BIT};
++            mesa_logi_once("MoveCertWSI: native PRESENT release cache clean enabled");
++         }
++      }
++
+       collect_cs_deps(cmdbuf, in, src, dst, out);
+    }
+ }
