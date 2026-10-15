@@ -1,0 +1,46 @@
+From: MoveCertificate contributors
+Subject: [PATCH] pan: diagnose vendor AFBC payload alignment on v10 Android
+
+Default-off MOVECERT_AFBC_ALIGN matches the observed OEM 1 KiB body offset
+for modifier 0x0800000000000072 without changing compression or composition.
+Use the common helper for both allocation sizes and render descriptors.
+This remains diagnostic until physical display acceptance.
+
+--- a/src/panfrost/lib/pan_afbc.h
++++ b/src/panfrost/lib/pan_afbc.h
+@@ -14,6 +14,11 @@
+ #include "pan_layout.h"
+ 
+ #include "drm-uapi/drm_fourcc.h"
++
++#ifdef __ANDROID__
++#include "util/u_debug.h"
++#include "util/log.h"
++#endif
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -377,7 +382,22 @@
+ static inline uint32_t
+ pan_afbc_body_align(unsigned arch, uint64_t modifier)
+ {
+-   /* Body and header alignments are actually the same. */
++#ifdef __ANDROID__
++   /* Opt-in diagnostic for vendor display engines which calculate a 1 KiB
++    * payload offset for non-tiled 32x8 AFBC. Keep allocation and descriptor
++    * offsets consistent by applying the alignment in this shared helper.
++    * The modifier and header alignment remain unchanged.
++    */
++   const uint64_t vendor_mod = DRM_FORMAT_MOD_ARM_AFBC(
++      AFBC_FORMAT_MOD_BLOCK_SIZE_32x8 | AFBC_FORMAT_MOD_SPLIT |
++      AFBC_FORMAT_MOD_YTR | AFBC_FORMAT_MOD_SPARSE);
++   if (arch == 10 && modifier == vendor_mod &&
++       debug_get_bool_option("MOVECERT_AFBC_ALIGN", false)) {
++      mesa_logi_once("MoveCertAFBC: 1024-byte body alignment enabled");
++      return 1024;
++   }
++#endif
++   /* Body and header alignments are otherwise the same. */
+    return pan_afbc_header_align(arch, modifier);
+ }
+ 
