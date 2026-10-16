@@ -1,0 +1,35 @@
+From: MoveCertificate contributors
+Subject: [PATCH] gralloc: query mapper metadata before legacy format rejection
+
+P010 allocation succeeds on PGKM10 but the common AHB properties query fails
+before the modern mapper backend is called. A standalone mapper query reads
+valid linear P010 and AFBC YUV metadata on this device. Preserve the existing
+legacy fallback when mapper lookup fails; do not invent layouts or formats.
+This addresses query ordering only. Packed AFBC YUV format support and FD
+selection require separate validation.
+
+--- a/src/util/u_gralloc/u_gralloc_fallback.c
++++ b/src/util/u_gralloc/u_gralloc_fallback.c
+@@ -586,6 +586,14 @@
+    if (hnd->handle->numFds == 0)
+       return -EINVAL;
+ 
++   /* Standard mapper metadata covers formats such as P010 which the old
++    * gralloc0 HAL format table cannot represent. Query it before legacy
++    * conversion or lock_ycbcr can reject a valid native buffer.
++    */
++   int stable_ret = panvk_v19_query_mapper(hnd->handle, out);
++   if (stable_ret == 0)
++      return 0;
++
+    if (is_hal_format_yuv(hnd->hal_format)) {
+       int ret = fallback_gralloc_get_yuv_info(gralloc, hnd, out);
+       /*
+@@ -635,7 +643,6 @@
+ 
+ 
+ 
+-   int stable_ret = panvk_v19_query_mapper(hnd->handle, out);
+    if (stable_ret != 0) {
+       mesa_logw("[P0A-V19-FULLPLANE] complete metadata unavailable rc=%d; refusing guessed layout",
+                 stable_ret);

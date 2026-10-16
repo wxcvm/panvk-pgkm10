@@ -1,0 +1,121 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: add bounded opt-in Kbase sync lifecycle diagnostics
+
+Trace signal, pending, move, reset and wait transitions with their object
+identity. MOVECERT_SYNC_TRACE defaults off and output is capped per process.
+All state reads occur while locked or before initial publication. Waiting,
+timeouts, ownership and submission ordering are unchanged.
+
+--- a/src/panfrost/vulkan/panvk_physical_device.c
++++ b/src/panfrost/vulkan/panvk_physical_device.c
+@@ -21,6 +21,8 @@
+ #include <sys/ioctl.h>
+ #include <unistd.h>
+ #include "util/timespec.h"
++#include "util/u_debug.h"
++#include "util/log.h"
+ #endif
+ 
+ #include "util/disk_cache.h"
+@@ -653,6 +655,28 @@
+    uint64_t target_addrs[PANVK_KBASE_SYNC_TARGET_COUNT];
+ };
+ 
++/* Bounded, default-off lifecycle diagnostics. No change to wait semantics. */
++DEBUG_GET_ONCE_BOOL_OPTION(movecert_sync_trace, "MOVECERT_SYNC_TRACE", false)
++
++static void
++kbase_sync_trace(const char *event, struct kbase_cpu_sync *ks, uint64_t timeout)
++{
++   static unsigned count;
++   if (!debug_get_option_movecert_sync_trace())
++      return;
++   unsigned n = p_atomic_inc_return(&count);
++   if (n > 2048)
++      return;
++   mesa_logw("MoveCertSync: n=%u event=%s sync=%p state=%u owner=%p wait=%p "
++             "targets=%llu,%llu,%llu timeout=%llu",
++             n, event, (void *)ks, ks->state, ks->pending_data,
++             (void *)ks->pending_wait,
++             (unsigned long long)ks->targets[0],
++             (unsigned long long)ks->targets[1],
++             (unsigned long long)ks->targets[2],
++             (unsigned long long)timeout);
++}
++
+ static VkResult
+ kbase_cpu_sync_init(struct vk_device *device, struct vk_sync *sync,
+                     uint64_t initial_value)
+@@ -674,6 +698,7 @@
+    ks->pending_wait = NULL;
+    memset(ks->targets, 0, sizeof(ks->targets));
+    memset(ks->target_addrs, 0, sizeof(ks->target_addrs));
++   kbase_sync_trace("init", ks, 0);
+    return VK_SUCCESS;
+ }
+ 
+@@ -700,6 +725,7 @@
+    ks->result = VK_SUCCESS;
+    ks->pending_data = NULL;
+    ks->pending_wait = NULL;
++   kbase_sync_trace("signal", ks, 0);
+    u_cnd_monotonic_broadcast(&ks->cond);
+    mtx_unlock(&ks->mutex);
+    return VK_SUCCESS;
+@@ -718,6 +744,7 @@
+    ks->pending_wait = NULL;
+    memset(ks->targets, 0, sizeof(ks->targets));
+    memset(ks->target_addrs, 0, sizeof(ks->target_addrs));
++   kbase_sync_trace("reset", ks, 0);
+    mtx_unlock(&ks->mutex);
+    return VK_SUCCESS;
+ }
+@@ -753,6 +780,7 @@
+       memset(ks->target_addrs, 0, sizeof(ks->target_addrs));
+    ks->result = VK_SUCCESS;
+    ks->state = KBASE_CPU_SYNC_PENDING;
++   kbase_sync_trace("pending", ks, 0);
+    u_cnd_monotonic_broadcast(&ks->cond);
+    mtx_unlock(&ks->mutex);
+ }
+@@ -827,6 +855,7 @@
+    timespec_from_nsec(&abs_timeout_ts, abs_timeout_ns);
+ 
+    mtx_lock(&ks->mutex);
++   kbase_sync_trace("wait", ks, abs_timeout_ns);
+    while (true) {
+       switch (ks->state) {
+       case KBASE_CPU_SYNC_SIGNALED:
+@@ -848,6 +877,7 @@
+          uint64_t targets[PANVK_KBASE_SYNC_TARGET_COUNT];
+          memcpy(targets, ks->targets, sizeof(targets));
+          ks->state = KBASE_CPU_SYNC_WAITING;
++         kbase_sync_trace("callback", ks, abs_timeout_ns);
+          mtx_unlock(&ks->mutex);
+ 
+          VkResult result = wait(data, targets, abs_timeout_ns);
+@@ -864,6 +894,7 @@
+             ks->state = KBASE_CPU_SYNC_FAILED;
+             ks->result = result;
+          }
++         kbase_sync_trace("callback-end", ks, abs_timeout_ns);
+          u_cnd_monotonic_broadcast(&ks->cond);
+          mtx_unlock(&ks->mutex);
+          return result;
+@@ -875,6 +906,7 @@
+             return VK_TIMEOUT;
+          }
+ 
++         kbase_sync_trace("condition", ks, abs_timeout_ns);
+          int ret = u_cnd_monotonic_timedwait(&ks->cond, &ks->mutex,
+                                               &abs_timeout_ts);
+          if (ret == thrd_timedout) {
+@@ -963,6 +995,8 @@
+    ks_src->pending_wait = NULL;
+    memset(ks_src->targets, 0, sizeof(ks_src->targets));
+    memset(ks_src->target_addrs, 0, sizeof(ks_src->target_addrs));
++   kbase_sync_trace("move-src", ks_src, 0);
++   kbase_sync_trace("move-dst", ks_dst, 0);
+    u_cnd_monotonic_broadcast(&ks_dst->cond);
+    u_cnd_monotonic_broadcast(&ks_src->cond);
+    mtx_unlock(&second->mutex);
