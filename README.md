@@ -1,5 +1,12 @@
 # PanVK RC3 与原厂回退包
 
+新增的 [WSI3 实验模块](wsi3-module/README.md) 单独打包为
+`PanVK-WSI3-PGKM10-experimental.zip`，使用完成 AFBC 对齐对照的固定 WSI3 库。
+安装默认关闭，通过 Root 管理器的“操作”按钮选择下次启动是否启用。
+它包含本机生成的 ColorX 兼容副本流程，但不分发 OEM 库；仅接受已核对的原厂库版本。
+临时实屏对照与隔离命名空间激活通过，正式开机、浏览器和长时间稳定性仍待验收。
+以下旧 RC3 安装包及其兼容限制继续保留；它们没有自动升级为 WSI3。
+
 两个包使用相同模块 ID `MTK_D8100_Vulkan1.4.Panvk`，用于替换手机现有的旧 PanVK 模块。
 安装任意一个都需要完整重启。不写 vendor 分区；两个包都默认使用原厂 Vulkan、OpenGL/EGL。
 

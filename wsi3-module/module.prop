@@ -1,0 +1,6 @@
+id=MTK_D8100_Vulkan1.4.Panvk
+name=Dimensity 8100 PanVK WSI3 (experimental)
+version=RC3-anbfix3-wsi3-wrapper1
+versionCode=5
+author=wxcvm
+description=Experimental PGKM10 Android 17 Vulkan fix. OFF by default. Action toggles next-boot activation. OpenGL and 32-bit Vulkan remain OEM.
