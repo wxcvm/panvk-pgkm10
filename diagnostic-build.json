@@ -1,6 +1,6 @@
 {
-  "name": "RC3-anbfix3-wsi4",
-  "status": "diagnostic only; P010 mapper ordering and Kbase sync trace; global compatibility unverified",
+  "name": "RC3-anbfix3-wsi5",
+  "status": "diagnostic only; correlate queue dependencies with WSI4 RESET-state hang; global compatibility unverified",
   "panvk_source_commit": "fd6ed91eff1c8d3a83307a2348b959bb93797011",
   "mesa_commit": "5a07217f034b3e50d8c7c7794f97a2df1742613b",
   "upstream_profile": "g615-v11-csf",
@@ -20,7 +20,8 @@
     "../diagnostics/024-native-present-cache-diagnostic.patch",
     "../diagnostics/025-afbc-body-alignment-diagnostic.patch",
     "../diagnostics/026-mapper-before-legacy-format.patch",
-    "../diagnostics/027-bounded-kbase-sync-trace.patch"
+    "../diagnostics/027-bounded-kbase-sync-trace.patch",
+    "../diagnostics/028-bounded-queue-dependency-trace.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false
