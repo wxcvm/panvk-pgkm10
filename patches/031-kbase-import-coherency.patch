@@ -1,0 +1,71 @@
+From: MoveCertificate contributors
+Subject: [PATCH] kbase: keep imported dma-bufs non-coherent to avoid
+ shareability faults
+
+Forcing BASE_MEM_COHERENT_SYSTEM on every imported dma-buf conflicts with
+the shareability attributes the OEM DDK uses for the same ColorOS system
+buffers.  The Mali MMU then reports GPU_SHAREABILITY_FAULT (seen in AS1 and
+AS2), kbase marks the context device-lost and HWUI aborts
+(VK_ERROR_DEVICE_LOST in RenderThread), which is the lock-screen black
+screen.  Imported buffers already go through explicit cache maintenance
+(is_io_coherent == false), so drop the coherent-system hint by default.
+Add property overrides (debug.panvk.kbase.import_clear/set) plus the
+existing env hooks so the flag word can be A/B tested without rebuilding.
+
+--- a/src/panfrost/lib/kmod/kbase_kmod.c
++++ b/src/panfrost/lib/kmod/kbase_kmod.c
+@@ -44,6 +44,10 @@
+ #include <sys/mman.h>
+ #include <unistd.h>
+ 
++#ifdef __ANDROID__
++#include <sys/system_properties.h>
++#endif
++
+ #include "util/macros.h"
+ #include "util/os_time.h"
+ #include "util/u_atomic.h"
+@@ -1455,10 +1459,17 @@ kbase_kmod_import_dmabuf(struct pan_kmod_dev *dev,
+       goto err_free_bo;
+    }
+ 
++   /* Imported dma-bufs are shared with the display stack, so SHARED is
++    * required, but forcing COHERENT_SYSTEM disagrees with how the OEM DDK
++    * maps the same physical pages and triggers GPU_SHAREABILITY_FAULT on
++    * system buffers (observed in SystemUI/HWUI under Vulkan).  Our backend
++    * performs explicit cache maintenance (is_io_coherent == false), so the
++    * coherent-system hint is not needed.
++    */
+    uint64_t import_flags =
+       BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_CPU_WR |
+       BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
+-      BASE_MEM_IMPORT_SHARED | BASE_MEM_COHERENT_SYSTEM;
++      BASE_MEM_IMPORT_SHARED;
+ 
+    if (kmod_flags & PAN_KMOD_BO_FLAG_GPU_UNCACHED)
+       import_flags |= BASE_MEM_UNCACHED_GPU;
+@@ -1475,6 +1486,24 @@ kbase_kmod_import_dmabuf(struct pan_kmod_dev *dev,
+    if (set_env && set_env[0])
+       import_flags |= strtoull(set_env, NULL, 0);
+ 
++   /* Android property overrides, evaluated per import so a reboot is not
++    * required for A/B runs:
++    *   debug.panvk.kbase.import_clear=<hex mask>
++    *   debug.panvk.kbase.import_set=<hex mask>
++    */
++#ifdef __ANDROID__
++   {
++      char value[PROP_VALUE_MAX] = { 0 };
++      if (__system_property_get("debug.panvk.kbase.import_clear", value) > 0 &&
++          value[0])
++         import_flags &= ~strtoull(value, NULL, 0);
++      value[0] = '\0';
++      if (__system_property_get("debug.panvk.kbase.import_set", value) > 0 &&
++          value[0])
++         import_flags |= strtoull(value, NULL, 0);
++   }
++#endif
++
+    int import_fd = kbase_bo->dmabuf_fd;
+    union kbase_ioctl_mem_import req = {
+       .in = {
