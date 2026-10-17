@@ -133,4 +133,29 @@ SurfaceFlinger 共享的合成缓冲尤其如此），于是同一物理页在�
 usage），并允许通过 `debug.mesa.movecert.afbc.linear_import=1` 把导入的 AFBC
 图像按 LINEAR 处理（像素错误但可验证 fault 是否来自 AFBC 解码/布局）。
 
+## 突破：GPU 非缓存导入消除 fault（2026-10-17 21:38）
+
+| 实验 | 结果 |
+|---|---|
+| 033：正常 AFBC 导入 + 交互压力 | 8 秒内 fault（图像日志：fmt=37、1088×2432、modifier 0x…351 等） |
+| 033：`afbc.linear_import=1`（强制 linear 处理） | 4 秒内 fault → **AFBC 被排除** |
+| **C：`debug.panvk.kbase.import_set=0x200000`（GPU_UNCACHED）** | **60 秒交互压力 NO_FAULT** |
+| **D：GPU_UNCACHED + `import_clear=0x40000`（去 SHARED）** | **60 秒 NO_FAULT** |
+
+根因：kbase 把导入的 gralloc 缓冲映射为 **可缓存 CPU 内存**（内核 `out.flags`
+含 `BASE_MEM_CACHED_CPU`）。当 GPU 以 cached 方式访问这些共享页时，GPU 事务的
+共享性属性与页表共享性不一致，Mali MMU 报 `GPU_SHAREABILITY_FAULT`；kbase 将
+context 标记 device-lost，HWUI/Skia 的 RenderThread abort → SystemUI 死亡/黑屏。
+
+修复（补丁 034）：导入标志默认追加 `BASE_MEM_UNCACHED_GPU`（GPU 非缓存访问），
+CPU 侧缓存一致性仍由显式 `KBASE_IOCTL_MEM_SYNC` 保证；保留
+`debug.panvk.kbase.import_clear` 供 A/B（清 `0x200000` 可恢复 cached 行为）。
+
+验证计划：034 构建完成后
+1. 不设任何属性 + skiavk，锁屏/通知栏压力 ≥3 分钟应无 fault；
+2. 微信/公众号回归（渲染、冷启动）；
+3. 性能对比（导入缓冲变为 GPU 非缓存，需确认没有明显回退）；
+4. 通过后把 034 纳入发布模块默认，skiavk 组合才可考虑启用。
+
+
 
