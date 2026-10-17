@@ -1,0 +1,164 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: support the opaque YU10 external format in
+ image layout and views
+
+Beta 1.1.0 step 2/3.  Patch 035 exposes DRM_FORMAT_YUV420_10BIT as the
+opaque external format 0x7f000001, but PanVK did not understand it: the
+plane count/extent helpers and image layout used it as a VkFormat (no
+PIPE_FORMAT), so vkAllocateMemory failed with
+VK_ERROR_INITIALIZATION_FAILED.  Map it to
+PIPE_FORMAT_Y10U10V10_420_UNORM_PACKED (the same native packed YUV
+format used by the panfrost GL path), teach the extent helpers to keep
+the image extent, and log the resulting layout for the remaining
+sampling work.
+
+--- a/src/panfrost/vulkan/panvk_image.h
++++ b/src/panfrost/vulkan/panvk_image.h
+@@ -16,6 +16,46 @@
+ 
+ #define PANVK_MAX_PLANES 3
+ 
++/* Opaque Android external format for single-plane 10-bit YUV 4:2:0
++ * (DRM_FORMAT_YUV420_10BIT / MTK "YU10").  Vulkan has no VkFormat for this
++ * layout; the Android runtime passes it through as an opaque external format
++ * and PanVK maps it to the native packed YUV pipe format understood by the
++ * panfrost image layout code. */
++#ifndef VK_ANDROID_EXTERNAL_FORMAT_YUV420_10BIT
++#define VK_ANDROID_EXTERNAL_FORMAT_YUV420_10BIT ((VkFormat)0x7f000001)
++#endif
++
++static inline bool
++panvk_format_is_external_yu10(VkFormat fmt)
++{
++   return fmt == VK_ANDROID_EXTERNAL_FORMAT_YUV420_10BIT;
++}
++
++static inline enum pipe_format
++panvk_format_to_pipe_format(VkFormat fmt)
++{
++   if (panvk_format_is_external_yu10(fmt))
++      return PIPE_FORMAT_Y10U10V10_420_UNORM_PACKED;
++
++   return vk_format_to_pipe_format(fmt);
++}
++
++static inline uint32_t
++panvk_format_plane_width(VkFormat fmt, unsigned plane, uint32_t width)
++{
++   return panvk_format_is_external_yu10(fmt)
++             ? width
++             : vk_format_get_plane_width(fmt, plane, width);
++}
++
++static inline uint32_t
++panvk_format_plane_height(VkFormat fmt, unsigned plane, uint32_t height)
++{
++   return panvk_format_is_external_yu10(fmt)
++             ? height
++             : vk_format_get_plane_height(fmt, plane, height);
++}
++
+ struct panvk_device_memory;
+ struct panvk_physical_device;
+
+--- a/src/panfrost/vulkan/panvk_image.c
++++ b/src/panfrost/vulkan/panvk_image.c
+@@ -84,6 +84,9 @@ get_iusage(struct panvk_image *image, const VkImageCreateInfo *create_info)
+ static unsigned
+ get_plane_count(struct panvk_image *image)
+ {
++   if (panvk_format_is_external_yu10(image->vk.format))
++      return 1;
++
+    bool combined_ds = vk_format_aspects(image->vk.format) ==
+                       (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
+ 
+@@ -146,6 +149,9 @@ select_plane_pfmt(struct panvk_image *image, uint64_t mod, unsigned plane)
+    struct panvk_physical_device *phys_dev =
+       to_panvk_physical_device(image->vk.base.device->physical);
+    unsigned arch = pan_arch(phys_dev->kmod.dev->props.gpu_id);
++   if (panvk_format_is_external_yu10(image->vk.format))
++      return panvk_format_to_pipe_format(image->vk.format);
++
+    if (panvk_image_is_planar_depth_stencil(image)) {
+       return plane > 0 ? select_stencil_plane_pfmt(image)
+                        : select_depth_plane_pfmt(image, mod);
+@@ -298,10 +304,10 @@ panvk_image_can_use_mod(struct panvk_image *image,
+    for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+       iprops.format = select_plane_pfmt(image, mod, plane);
+       iprops.extent_px = (struct pan_image_extent){
+-         .width = vk_format_get_plane_width(image->vk.format, plane,
+-                                            image->vk.extent.width),
+-         .height = vk_format_get_plane_height(image->vk.format, plane,
+-                                              image->vk.extent.height),
++         .width = panvk_format_plane_width(image->vk.format, plane,
++                                           image->vk.extent.width),
++         .height = panvk_format_plane_height(image->vk.format, plane,
++                                             image->vk.extent.height),
+          .depth = image->vk.extent.depth,
+       };
+ 
+@@ -445,10 +451,12 @@ get_pan_image_props(const struct vk_image *image, enum pipe_format pfmt,
+       .dim = panvk_image_type_to_mali_tex_dim(image->image_type),
+       .extent_px =
+          {
+-            .width = vk_format_get_plane_width(image->format, plane,
+-                                               image->extent.width),
+-            .height = vk_format_get_plane_height(image->format, plane,
+-                                                 image->extent.height),
++            .width =
++               panvk_format_plane_width(image->format, plane,
++                                        image->extent.width),
++            .height =
++               panvk_format_plane_height(image->format, plane,
++                                         image->extent.height),
+             .depth = image->extent.depth,
+          },
+       .array_size = image->array_layers,
+@@ -676,6 +684,16 @@ panvk_image_init_layouts(struct panvk_image *image,
+                             VK_ERROR_INITIALIZATION_FAILED);
+    }
+ 
++   if (panvk_format_is_external_yu10(image->vk.format)) {
++      mesa_logi("movecert: external YU10 image extent=%ux%u mod=0x%llx "
++                "planes=%u pfmt=%u offset=%llu size=%llu",
++                image->vk.extent.width, image->vk.extent.height,
++                (unsigned long long)image->vk.drm_format_mod,
++                image->plane_count, image->planes[0].image.props.format,
++                (unsigned long long)image->planes[0].plane.layout.slices[0].offset_B,
++                (unsigned long long)panvk_image_get_total_size(image));
++   }
++
+    return VK_SUCCESS;
+ }
+
+--- a/src/panfrost/vulkan/panvk_vX_image_view.c
++++ b/src/panfrost/vulkan/panvk_vX_image_view.c
+@@ -264,7 +264,7 @@ prepare_attr_buf_descs(struct panvk_image_view *view)
+ static unsigned
+ get_yuv_cr_siting(const struct vk_ycbcr_conversion_state *conv)
+ {
+-   const enum pipe_format pfmt = vk_format_to_pipe_format(conv->format);
++   const enum pipe_format pfmt = panvk_format_to_pipe_format(conv->format);
+    const struct util_format_description *desc = util_format_description(pfmt);
+    const bool x_mid = conv->chroma_offsets[0] == VK_CHROMA_LOCATION_MIDPOINT;
+    const bool y_mid = conv->chroma_offsets[1] == VK_CHROMA_LOCATION_MIDPOINT;
+@@ -344,7 +344,7 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
+          view->vk.view_format = vk_format_stencil_only(view->vk.view_format);
+    }
+ 
+-   enum pipe_format pfmt = vk_format_to_pipe_format(view->vk.view_format);
++   enum pipe_format pfmt = panvk_format_to_pipe_format(view->vk.view_format);
+    const VkImageViewASTCDecodeModeEXT *astc_decode =
+       vk_find_struct_const(pCreateInfo->pNext, IMAGE_VIEW_ASTC_DECODE_MODE_EXT);
+ 
+@@ -357,7 +357,8 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
+       .nr_samples = image->vk.samples,
+       .first_level = view->vk.base_mip_level,
+       /* MIPmapping in YUV formats is not supported by the HW. */
+-      .last_level = vk_format_get_ycbcr_info(view->vk.format)
++      .last_level = (vk_format_get_ycbcr_info(view->vk.format) ||
++                     panvk_format_is_external_yu10(view->vk.format))
+          ? view->vk.base_mip_level
+          : view->vk.base_mip_level + view->vk.level_count - 1,
+       .min_lod = view->vk.min_lod,

@@ -28,7 +28,8 @@
     "patches/032-afbc-switch.patch",
     "patches/033-afbc-linear-import.patch",
     "patches/034-kbase-uncached-imports.patch",
-    "patches/035-yu10-external-format.patch"
+    "patches/035-yu10-external-format.patch",
+    "patches/036-panvk-yu10-image.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false
