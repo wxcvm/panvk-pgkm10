@@ -82,3 +82,27 @@ SurfaceFlinger 共享的合成缓冲尤其如此），于是同一物理页在�
   外部格式导入**（Mesa 上游 Vulkan 侧也没有，PanVK 的 AFBC 仅 GL 侧支持），
   因此 `debug.renderengine.backend` 应保持 `skiagl`；
 - skiavk 在 ColorOS 上仍属实验配置，修复后需重复锁屏/输入压力测试才能判定可用。
+
+## 实机结果（2026-10-17 20:50，031 构建 bbc604cd…）
+
+- 新驱动构建成功（BuildId `fe8415a8…`），P010 探针无回归（线性 P010 通过）；
+- 单应用 HWUI Vulkan（Settings）连续 4 分钟无 GPU fault / 无 tombstone；
+- 但 SystemUI（锁屏/通知栏）在 031 驱动下**仍然出现 GPU_SHAREABILITY_FAULT**
+  （dmesg：`GPU Fault 0x20e00488/0x00e00488 (GPU_SHAREABILITY_FAULT) in AS1/AS2`），
+  随后 SystemUI 卡死并触发 ANR：
+  `Input dispatching timed out (NotificationShade is not responding, 5000ms)`；
+- 结论：**去掉强制 `COHERENT_SYSTEM` 并不能消除该 fault**，故障不（只）是导入标志问题；
+  需要进一步定位是哪个缓冲/操作（HWUI 的 AFBC/线性离屏缓冲、锁屏模糊、还是
+  与 OEM DDK 共享的系统合成缓冲）触发共享性冲突。
+- 当前处置：手机已回全部原厂（模块全禁用），锁屏/输入正常；skiavk 配置仍不建议开启。
+
+### 下一步候选
+
+1. 在驱动里给 import/映射加 per-buffer 日志（含 import flags、modifier、
+   usage、stride），复现并对照 fault 地址定位具体缓冲；
+2. 用 `debug.panvk.kbase.import_clear/set` 属性做 flag 组合 A/B（需要
+   `mali_kbase_ioctl.h` 里 BASE_MEM_* 数值）；
+3. 排查 HWUI Vulkan 的 AFBC 离屏/锁屏模糊路径（可试关闭 PanVK 的 AFBC 或
+   `debug.hwui.renderer=skiavk` 下禁用 hardware bitmaps/blur 对照）；
+4. 若短期无法根治：稳定方案 = skiavk 关闭 + PanVK 仅注入应用（微信公众号卡死已修复）。
+
