@@ -9,23 +9,12 @@ AS2), kbase marks the context device-lost and HWUI aborts
 (VK_ERROR_DEVICE_LOST in RenderThread), which is the lock-screen black
 screen.  Imported buffers already go through explicit cache maintenance
 (is_io_coherent == false), so drop the coherent-system hint by default.
-Add property overrides (debug.panvk.kbase.import_clear/set) plus the
-existing env hooks so the flag word can be A/B tested without rebuilding.
+Add property overrides (debug.panvk.kbase.import_clear/set) so flags can
+be A/B tested on device without rebuilding.
 
 --- a/src/panfrost/lib/kmod/kbase_kmod.c
 +++ b/src/panfrost/lib/kmod/kbase_kmod.c
-@@ -44,6 +44,10 @@
- #include <sys/mman.h>
- #include <unistd.h>
- 
-+#ifdef __ANDROID__
-+#include <sys/system_properties.h>
-+#endif
-+
- #include "util/macros.h"
- #include "util/os_time.h"
- #include "util/u_atomic.h"
-@@ -1455,10 +1459,17 @@ kbase_kmod_import_dmabuf(struct pan_kmod_dev *dev,
+@@ -1879,10 +1879,17 @@ kbase_kmod_import_dmabuf(struct pan_kmod_dev *dev,
        goto err_free_bo;
     }
  
@@ -44,18 +33,19 @@ existing env hooks so the flag word can be A/B tested without rebuilding.
  
     if (kmod_flags & PAN_KMOD_BO_FLAG_GPU_UNCACHED)
        import_flags |= BASE_MEM_UNCACHED_GPU;
-@@ -1475,6 +1486,24 @@ kbase_kmod_import_dmabuf(struct pan_kmod_dev *dev,
+@@ -1899,6 +1906,25 @@ kbase_kmod_import_dmabuf(struct pan_kmod_dev *dev,
     if (set_env && set_env[0])
        import_flags |= strtoull(set_env, NULL, 0);
  
++#ifdef __ANDROID__
 +   /* Android property overrides, evaluated per import so a reboot is not
 +    * required for A/B runs:
 +    *   debug.panvk.kbase.import_clear=<hex mask>
 +    *   debug.panvk.kbase.import_set=<hex mask>
 +    */
-+#ifdef __ANDROID__
 +   {
-+      char value[PROP_VALUE_MAX] = { 0 };
++      extern int __system_property_get(const char *name, char *value);
++      char value[92] = { 0 };
 +      if (__system_property_get("debug.panvk.kbase.import_clear", value) > 0 &&
 +          value[0])
 +         import_flags &= ~strtoull(value, NULL, 0);
