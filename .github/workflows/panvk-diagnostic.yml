@@ -1,0 +1,77 @@
+name: Build PanVK workload diagnostic
+
+on:
+  push:
+    branches: ['fix/**', 'codex/**']
+    paths:
+      - '.github/workflows/panvk-diagnostic.yml'
+      - 'diagnostics/**'
+      - 'diagnostic-build.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config python3-venv \
+            bison flex libdrm-dev libexpat1-dev zlib1g-dev libzstd-dev \
+            llvm-18-dev clang-18 libclang-18-dev libclang-cpp18-dev \
+            libllvmspirvlib-18-dev libxcb1-dev libxcb-randr0-dev \
+            libxcb-dri3-dev libxcb-present-dev libxcb-shm0-dev \
+            libxcb-sync-dev libxcb-xfixes0-dev libx11-xcb-dev libxshmfence-dev
+          python3 -m venv .cache/panvk-venv
+          .cache/panvk-venv/bin/pip install meson==1.9.1 Mako==1.3.10 PyYAML==6.0.2 packaging==25.0
+          echo "$GITHUB_WORKSPACE/.cache/panvk-venv/bin" >> "$GITHUB_PATH"
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
+      - name: Install pinned Android NDK
+        run: |
+          curl --fail --location --retry 3 https://dl.google.com/android/repository/android-ndk-r28c-linux.zip -o .cache/ndk.zip
+          echo 'a7b54a5de87fecd125a17d54f73c446199e72a64  .cache/ndk.zip' | sha1sum --check
+          unzip -q .cache/ndk.zip -d .cache
+          echo "ANDROID_NDK_ROOT=$GITHUB_WORKSPACE/.cache/android-ndk-r28c" >> "$GITHUB_ENV"
+      - name: Restore native code generation tools
+        id: host_tools
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/panvk-experimental/host-tools
+          key: ubuntu24-panvk-host-llvm18-diagnostic-v1-${{ hashFiles('diagnostic-build.json', 'diagnostics/**', 'patches/**') }}
+      - name: Build pinned diagnostic with bounded workload logging
+        run: |
+          cp diagnostic-build.json experimental-build.json
+          bash scripts/build-panvk-experimental.sh
+          cp diagnostics/*.patch .cache/panvk-experimental/dist/
+      - name: Save native code generation tools
+        if: always() && steps.host_tools.outputs.cache-hit != 'true' && hashFiles('.cache/panvk-experimental/host-tools/mesa_clc') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/panvk-experimental/host-tools
+          key: ${{ steps.host_tools.outputs.cache-primary-key }}
+      - name: Upload experimental driver and provenance
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: PanVK-RC3-anbfix3-wsi7-diagnostic
+          path: .cache/panvk-experimental/dist/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: PanVK-diagnostic-build-logs
+          path: |
+            .cache/panvk-experimental/*.log
+            .cache/panvk-experimental/host/meson-logs/meson-log.txt
+            .cache/panvk-experimental/android/meson-logs/meson-log.txt
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14

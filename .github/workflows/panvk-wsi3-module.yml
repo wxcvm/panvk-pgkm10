@@ -1,0 +1,40 @@
+name: Build WSI3 experimental module
+
+# 注意：打包流程仍固定引用原 MoveCertificate 仓库的 WSI3 历史 artifact（provenance）。
+# 在本仓库重新钉住 artifact 之前，只允许手动触发。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Check runtime and rollback
+        run: |
+          for script in wsi3-module/*.sh tests/wsi3-launcher-test.sh; do sh -n "$script"; done
+          sh tests/wsi3-launcher-test.sh
+      - name: Download pinned WSI3 build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .cache
+          curl --fail --location --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/wxcvm/MoveCertificate/actions/artifacts/11971620048/zip \
+            -o .cache/wsi3.zip
+      - name: Verify provenance and package default-off module
+        run: python3 scripts/package-wsi3.py --artifact .cache/wsi3.zip
+      - name: Upload experimental module
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: PanVK-WSI3-PGKM10-experimental
+          path: PanVK-WSI3-PGKM10-experimental.zip
+          if-no-files-found: error
+          retention-days: 30

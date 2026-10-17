@@ -1,4 +1,32 @@
-# PanVK RC3 与原厂回退包
+# PanVK for OnePlus PGKM10（MT6895 / Mali-G610 MC6）
+
+本仓库是从 [wxcvm/MoveCertificate](https://github.com/wxcvm/MoveCertificate) 的 PanVK
+实验驱动子工程（原 `driver-fix/`）分离出来的独立仓库；`git subtree split` 保留了完整提交历史。
+MoveCertificate 主仓库只负责证书模块，不再承载驱动工作。
+
+- 目标设备：OnePlus PGKM10（OP5565）/ Android 17 / Mali-G610 MC6 / MTK kbase
+- 驱动来源：上游 [panvk-kbase-android](https://github.com/zenithblue-oss/panvk-kbase-android)
+  的 RC3，叠加本仓库 `patches/` 019–021 与 `diagnostics/` 022–030
+- 安全默认：`enable_global=0`（使用原厂 Vulkan）；已知平台（PGKM10 + SDK 37）拒绝全局替换
+- 构建：GitHub Actions（`.github/workflows/panvk-*.yml`），产物为 ICD `.so` 与构建溯源
+- 本机验证入口：`tests/driver-test.sh`、`tests/wsi3-launcher-test.sh`、
+  `scripts/build-panvk-experimental.sh`
+- 许可证：Mesa 派生补丁遵循 MIT；完整声明见 `licenses/`
+
+目录：`patches/`（019–021 源码修复）、`diagnostics/`（022–030 诊断/兼容补丁）、
+`probe/`（显示诊断 APK 源码）、`wsi3-module/`（实验模块包装）、`scripts/`、`tests/`、
+`.github/workflows/`。
+
+> 说明：合并前的设备实验证据（`diagnostics/` 大目录、截图、日志）未随仓库迁移，
+> 仍保留在本地；仓库只包含可复现的源码、补丁、脚本与文档。
+>
+> 注意：`scripts/build-panvk-present-probe.sh` 与 `.github/workflows/panvk-wsi3-module.yml`
+> 仍固定引用原 MoveCertificate 仓库的历史构建产物（artifact id），用于溯源；在本仓库
+> 完成第一次构建后，应改为引用本仓库的 artifact。
+
+---
+
+## PanVK RC3 与原厂回退包
 
 新增的 [WSI3 实验模块](wsi3-module/README.md) 单独打包为
 `PanVK-WSI3-PGKM10-experimental.zip`，使用完成 AFBC 对齐对照的固定 WSI3 库。
@@ -43,7 +71,7 @@ RC3-anbfix3 的 waiter 生命周期修复已通过实机回归：64 次同步往
 仍是官方 RC3；详情及验证边界见
 [INVESTIGATION.md](INVESTIGATION.md)。
 
-实验构建使用独立的 [PanVK Actions 工作流](../.github/workflows/panvk-experimental.yml)。
+实验构建使用独立的 [PanVK Actions 工作流](.github/workflows/panvk-experimental.yml)。
 `PanVK-RC3-anbfix3-experimental` 产物包含 `libvulkan_panfrost.so`、固定源提交、补丁
 及校验记录，是供实机验证的驱动库归档，不是 Root 模块安装包。构建输入见
 `experimental-build.json`，本地构建入口为 `scripts/build-panvk-experimental.sh`，

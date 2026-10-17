@@ -1,0 +1,18 @@
+# 行尾规范：脚本与配置一律 LF。
+#
+# 为什么需要它：本仓库常在 Windows 工作区编辑（core.autocrlf=true）。shell 脚本一旦以
+# CRLF 落库，shebang 就成了 "#!/bin/sh\r"，Linux 上直接
+# "cannot execute: required file not found" —— MoveCertificate 的
+# Build and Package #4 就是这样挂掉的（API 推送脚本直推工作区字节导致）。
+# 这里显式声明，任何客户端、任何推送方式都不会再把 CRLF 带进来。
+
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.properties    text eol=lf
+*.json          text eol=lf
+*.mjs           text eol=lf
+*.ts            text eol=lf
+*.js            text eol=lf
+*.css           text eol=lf
+*.html          text eol=lf

@@ -1,0 +1,34 @@
+name: Build PanVK display probe
+
+# 注意：构建脚本仍固定引用原 MoveCertificate 仓库的历史 artifact（provenance）。
+# 在本仓库完成首次构建并重新钉住 artifact 之前，只允许手动触发。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Install pinned Android build tools
+        run: |
+          manager=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort -V | tail -n 1)
+          test -x "$manager"
+          "$manager" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+      - name: Build local-only display diagnostic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/build-panvk-present-probe.sh
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: PanVK-Display-Probe
+          path: |
+            .cache/panvk-present-probe/PanVK-Display-Probe.apk
+            .cache/panvk-present-probe/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14

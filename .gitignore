@@ -1,0 +1,9 @@
+# 安装包与产物
+*.zip
+driver-dist/
+.cache/
+
+# 本机构建产物
+__pycache__/
+vulkan.mali.so
+.DS_Store
