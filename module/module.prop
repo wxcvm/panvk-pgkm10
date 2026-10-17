@@ -1,6 +1,6 @@
 id=MTK_D8100_Vulkan1.4.Panvk
 name=Dimensity 8100 PanVK WSI7 (Vulkan only)
-version=0.3.0-wsi7
-versionCode=6
+version=0.4.0-wsi7
+versionCode=7
 author=wxcvm; upstream zenithblue-oss
-description=WSI7 PanVK (Mesa 26.3 + 019-030 patches) for PGKM10/Android 17. Default OFF (OEM Vulkan). When enabled, the ICD is bound into the app spawn namespaces only; SurfaceFlinger, system_server and other system processes keep the OEM driver. Toggle from the module Action button and reboot.
+description=WSI7 PanVK (Mesa 26.3 + 019-030 patches) for PGKM10/Android 17. Default OFF (OEM Vulkan). When enabled with scope=system the ICD is bound system-wide; SurfaceFlinger/RenderEngine must stay on skiagl (the bundled preset does this). GPU imports are forced uncached to avoid Mali GPU_SHAREABILITY_FAULT. Toggle from the module Action button and reboot.

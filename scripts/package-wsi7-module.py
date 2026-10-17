@@ -13,9 +13,9 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parent.parent
-DRIVER_SHA = "9c0df1a352a9100da6fb9dfde1533486a736c58d625719f6edc54ad614ef5aec"
+DRIVER_SHA = "e62177fb598271b12e478833d9c0d01f44c3e452e83e194903e5ac1478fc1dc0"
 COLORX_PATCHED_SHA = "16c93822969608ce3662e3d01725438b1ab88d6c2c6c8b54bef9b2c0419db0b8"
-DRIVER_SOURCE_COMMIT = "1f59ef0f75934106b7727550abf08da5a5d26fd2"
+DRIVER_SOURCE_COMMIT = "43001017a03c463c950381b6e461dcb72e8cc539"
 MODULE_FILES = (
     "module.prop",
     "driver.conf",

@@ -157,5 +157,25 @@ CPU 侧缓存一致性仍由显式 `KBASE_IOCTL_MEM_SYNC` 保证；保留
 3. 性能对比（导入缓冲变为 GPU 非缓存，需确认没有明显回退）；
 4. 通过后把 034 纳入发布模块默认，skiavk 组合才可考虑启用。
 
+## 修复验证（补丁 034，2026-10-17 22:00）
 
+| 项目 | 结果 |
+|---|---|
+| 034 驱动（`e62177fb…`，16 个补丁） | 构建成功 |
+| 运行时注入 + skiavk，无属性默认配置 | 184 秒锁屏/通知栏压力 **NO_FAULT** |
+| 模块 system 作用域开机挂载 + skiavk（HWUI Vulkan） | 30 秒 boot_completed，props 正确（`skiagl` / `skiavk`） |
+| 整机 200 秒锁屏/通知栏压力 | **faults=0，SystemUI 全程存活**（pid 不变） |
+| SurfaceFlinger | `vulkan_maps=0`（GL 合成，符合设计） |
+| SystemUI | `vulkan_maps=4`（HWUI Vulkan 生效） |
+| 微信 | 公众号页正常渲染（截图核对），无 VK 错误 |
+| 崩溃 | 无新增 tombstone；dropbox 仅无关的 Adaway 崩溃 |
 
+模块更新：payload 换成 034 驱动（`GPU_SHA=e62177fb…`，version 0.4.0-wsi7），
+`hwui_use_vulkan` 的 `debug.renderengine.backend` 保持 `skiagl`（只开 HWUI Vulkan）。
+
+### 代价与边界
+
+- 导入缓冲默认 **GPU 非缓存**，可能带来少量采样/合成性能损失（大小待测）；
+  可用 `debug.panvk.kbase.import_clear=0x200000` 恢复 cached 行为做 A/B；
+- SF RenderEngine 仍必须 `skiagl`：压缩 YU10 的 Vulkan 导入尚未实现（上游也没有）；
+- 034 只解决 shareability fault，不等于系统 UI Vulkan 无任何其他风险，仍需长期观察。
