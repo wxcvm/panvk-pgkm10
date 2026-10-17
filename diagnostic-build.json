@@ -30,7 +30,8 @@
     "patches/034-kbase-uncached-imports.patch",
     "patches/035-yu10-external-format.patch",
     "patches/036-panvk-yu10-image.patch",
-    "patches/037-yu10-diagnostics.patch"
+    "patches/037-yu10-diagnostics.patch",
+    "patches/038-yu10-afbc-format.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false

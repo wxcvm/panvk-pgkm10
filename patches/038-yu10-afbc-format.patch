@@ -1,0 +1,21 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: use the AFBC-capable packed format for YU10 images
+
+Diagnostics from patch 037 show pan_image_layout_init() failing for
+PIPE_FORMAT_Y10U10V10_420_UNORM_PACKED with an AFBC modifier: pan_afbc_format()
+has no AFBC mode for the native packed YUV format.  The panfrost GL path uses
+PIPE_FORMAT_R10G10B10_420_UNORM_PACKED for DRM_FORMAT_YUV420_10BIT imports,
+which maps to PAN_AFBC_MODE_YUV420_6C10.  Switch the opaque YU10 mapping to
+that pipe format so the AFBC layout can be created.
+
+--- a/src/panfrost/vulkan/panvk_image.h
++++ b/src/panfrost/vulkan/panvk_image.h
+@@ -35,7 +35,7 @@ static inline enum pipe_format
+ panvk_format_to_pipe_format(VkFormat fmt)
+ {
+    if (panvk_format_is_external_yu10(fmt))
+-      return PIPE_FORMAT_Y10U10V10_420_UNORM_PACKED;
++      return PIPE_FORMAT_R10G10B10_420_UNORM_PACKED;
+ 
+    return vk_format_to_pipe_format(fmt);
+ }
