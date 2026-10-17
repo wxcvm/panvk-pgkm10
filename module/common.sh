@@ -5,7 +5,7 @@ GPU_TARGET=/vendor/lib64/hw/mt6895/vulkan.mali.so
 COLORX_TARGET=/system_ext/lib64/libvulkanextimpl.so
 
 # Pinned hashes: driver payload, OEM baseline, ColorX copy and its patched result.
-GPU_SHA=e62177fb598271b12e478833d9c0d01f44c3e452e83e194903e5ac1478fc1dc0
+GPU_SHA=302232ed0407b8f173c73d4e5dd55461b9b9bbba1e02f7d0a98acd6c09d12d3a
 OEM_SHA=2ae46e5c85ff73ab3441b1acbd12e60d50247b0be56a19a825e2fae66050c5b0
 COLORX_SHA=3835dd76a8e6536d53c638467bf9785897802ad96867ecaf9f539b1085707fe5
 COLORX_PATCHED_SHA=16c93822969608ce3662e3d01725438b1ab88d6c2c6c8b54bef9b2c0419db0b8
