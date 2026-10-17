@@ -1,0 +1,46 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: allow disabling AFBC at runtime to isolate
+ shareability faults
+
+GPU_SHAREABILITY_FAULT from the HWUI/Vulkan path persists regardless of
+the kbase import coherency flags (patch 031).  Add an on-device property
+debug.mesa.movecert.afbc.disable so AFBC can be switched off per image
+without rebuilding, and to test whether the AFBC layout/descriptors of
+imported system buffers are responsible for the fault.
+
+--- a/src/panfrost/vulkan/panvk_image.c
++++ b/src/panfrost/vulkan/panvk_image.c
+@@ -158,6 +158,21 @@ select_plane_pfmt(struct panvk_image *image, uint64_t mod, unsigned plane)
+    return vk_format_to_pipe_format(plane_format);
+ }
+ 
++static bool
++panvk_afbc_disabled_by_prop(void)
++{
++   static int disabled = -1;
++   if (disabled < 0) {
++      extern int __system_property_get(const char *name, char *value);
++      char value[92] = { 0 };
++      disabled = __system_property_get("debug.mesa.movecert.afbc.disable",
++                                       value) > 0 &&
++                 (value[0] == '1' || value[0] == 't' || value[0] == 'T' ||
++                  value[0] == 'y' || value[0] == 'Y');
++   }
++   return disabled;
++}
++
+ static bool
+ panvk_image_can_use_mod(struct panvk_image *image,
+                         const struct pan_image_usage *iusage, uint64_t mod,
+@@ -179,8 +194,9 @@ panvk_image_can_use_mod(struct panvk_image *image,
+           image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT);
+ 
+    if (drm_is_afbc(mod)) {
+-      /* AFBC explicitly disabled. */
+-      if (PANVK_DEBUG(NO_AFBC))
++      /* AFBC explicitly disabled, either through a debug option or the
++       * on-device property used to isolate shareability faults. */
++      if (PANVK_DEBUG(NO_AFBC) || panvk_afbc_disabled_by_prop())
+          return false;
+ 
+       /* The application asked for an uncompressed image. */
