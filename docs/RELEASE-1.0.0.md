@@ -1,5 +1,7 @@
 # PanVK WSI7 v1.0.0 — PGKM10 / Android 17 稳定版
 
+下载：https://github.com/wxcvm/panvk-pgkm10/releases/tag/v1.0.0
+
 首个正式版：把已验证的 PanVK 实验驱动打包成可安装、可回滚、带失败安全的 KernelSU 模块。
 
 ## 亮点
