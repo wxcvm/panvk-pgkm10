@@ -120,5 +120,13 @@ WSI6 确认两次等待都来自同一微信 Flutter 引擎的不同调用位置
 不覆盖永久载荷，不把未完成的外部栅栏伪造为完成，不提供第三次等待许可。
 新的导入、信号操作和销毁会清理副本，普通 `ImportSemaphoreFdKHR` 不启用此处理。
 
-这是针对已观察到的应用行为的实验性兼容处理，默认关闭，尚待独立负面/正面对照、
-真实栅栏及微信验证；不是正常 Vulkan 同步语义的更改，也不用于全局安装。
+这是针对已观察到的应用行为的实验性兼容处理，默认关闭；不是正常 Vulkan 同步语义
+的更改，也不用于全局安装。
+
+WSI7 实机 A/B（2026-10-17，微信 8.0.79 / 公众号 Flutter 信息流页，同一驱动仅切换
+`acq.replay`）：开关打开时页面进入后可连续交互、5 次滑动全部完成，日志命中
+`event=acquire-replay` 14 次且等待正常 callback；同一驱动关闭开关时，同一页面
+在首次提交后出现 `wait state=0 timeout=UINT64_MAX` 的永久等待、无 callback，
+`uiautomator dump` 无响应（界面冻结）。详见 `docs/WSI7-WECHAT-VALIDATION.md`。
+本轮未覆盖长时间浸泡、公众号正文页（XWeb）、视频号、全局替换后的
+SurfaceFlinger/ColorX 路径与游戏。
