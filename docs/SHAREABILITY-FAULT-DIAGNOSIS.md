@@ -106,3 +106,31 @@ SurfaceFlinger 共享的合成缓冲尤其如此），于是同一物理页在�
    `debug.hwui.renderer=skiavk` 下禁用 hardware bitmaps/blur 对照）；
 4. 若短期无法根治：稳定方案 = skiavk 关闭 + PanVK 仅注入应用（微信公众号卡死已修复）。
 
+## 实验记录（2026-10-17 20:20–21:20）
+
+| 实验 | 结果 |
+|---|---|
+| 031：导入默认去掉 `COHERENT_SYSTEM` | 仍然 fault（SystemUI 数分钟内 ANR/死） |
+| import flag A/B：`import_set=0x400`（旧默认） | 8 秒内 fault |
+| import flag A/B：`import_clear=0x40000`（去掉 SHARED） | 4 秒内 fault |
+| 032：`debug.mesa.movecert.afbc.disable=1` | 仍 fault（但显式 modifier 导入绕过该检查，实验无效） |
+| 交互压力（锁屏/解锁/通知栏） | 稳定复现 fault（4–14 秒） |
+
+现场捕获（`fault-capture.log`，18.9 MB）：
+
+- fault 前 SystemUI（pid 19175）在 21:04:58 被 ActivityManager 记录
+  `has died`（无 tombstone，属 device-lost 回调/被杀）；
+- SystemUI 死前 1 秒大量 **AFBC RGB 图像导入**：fourcc `0x34324241`（"AB24"，
+  32bpp 10-bit RGB）、modifier `0x0800000000000072`（115 次）与
+  `0x0800000000000151`（14 次）、以及 linear 96 次；
+- 这些导入来自 ColorOS 系统组件（如 `com.coloros.smartsidebar:edgepanel`），
+  说明 skiavk 下多个系统 UI 进程都在用 PanVK 采样/合成系统缓冲；
+- 导入 flags 均为 `0x4000f`（patch 031 默认），kernel 回 `outflags=0x4500f`
+  （NEED_MMAP|CACHED_CPU|SHARED），即非 coherent。
+
+当前结论：**fault 与导入标志无关；AFBC 是否相关尚未被有效验证**（显式导入
+绕过 032 的开关）。下一步补丁 033：记录每个 AFBC 图像（format/extent/modifier/
+usage），并允许通过 `debug.mesa.movecert.afbc.linear_import=1` 把导入的 AFBC
+图像按 LINEAR 处理（像素错误但可验证 fault 是否来自 AFBC 解码/布局）。
+
+
