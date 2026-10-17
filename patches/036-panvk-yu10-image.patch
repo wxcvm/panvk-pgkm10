@@ -126,7 +126,7 @@ sampling work.
 +                (unsigned long long)image->vk.drm_format_mod,
 +                image->plane_count, image->planes[0].image.props.format,
 +                (unsigned long long)image->planes[0].plane.layout.slices[0].offset_B,
-+                (unsigned long long)panvk_image_get_total_size(image));
++                (unsigned long long)image->planes[0].plane.layout.data_size_B);
 +   }
 +
     return VK_SUCCESS;
