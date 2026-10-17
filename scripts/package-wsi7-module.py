@@ -36,7 +36,7 @@ def digest(data: bytes) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--driver", type=Path, required=True, help="Pinned libvulkan_panfrost.so (wsi7)")
-    parser.add_argument("--output", type=Path, default=ROOT / "PanVK-WSI7-PGKM10-enable.zip")
+    parser.add_argument("--output", type=Path, default=ROOT / "PanVK-WSI7-PGKM10-v1.0.0.zip")
     args = parser.parse_args()
 
     driver_bytes = args.driver.read_bytes()

@@ -62,3 +62,14 @@
   `skiavk` 仍会因压缩 YU10 导入失败而崩溃；
 - 游戏只验证到登录界面，实际画面/长时间游戏未验证；
 - 仅供本人设备实验使用；刷机/模块操作有风险，请保留可回滚手段。
+
+## 版本状态（v1.0.0，2026-10-17）
+
+- 稳定版：驱动 sha256 `e62177fb…`（含 019–034 补丁），模块 versionCode 10；
+- 已修复：SystemUI `GPU_SHAREABILITY_FAULT`（GPU 非缓存导入）、微信 acquire 路径无界等待；
+- 已验证：重启自动挂载、锁屏/通知栏 200 秒压力 0 fault、15 分钟稳定、性能无回退；
+- 开关：`enable_global=1` + `scope=system` + `hwui_use_vulkan`（其
+  `debug.renderengine.backend` 必须是 `skiagl`）；
+- **`skiavkthreaded` 暂不支持**（压缩 YU10 的 Vulkan 导入缺失），计划在下一个测试版
+  `1.1.0-beta1` 补齐，详见 `docs/BETA-SKIAVKTHREADED-PLAN.md`；
+- 回滚：禁用 `MTK_D8100_Vulkan1.4.Panvk` 与 `hwui_use_vulkan` 后重启。

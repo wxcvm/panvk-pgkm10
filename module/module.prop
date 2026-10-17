@@ -1,6 +1,6 @@
 id=MTK_D8100_Vulkan1.4.Panvk
 name=Dimensity 8100 PanVK WSI7 (Vulkan only)
-version=0.4.0-wsi7
-versionCode=7
+version=1.0.0-wsi7
+versionCode=10
 author=wxcvm; upstream zenithblue-oss
-description=WSI7 PanVK (Mesa 26.3 + 019-030 patches) for PGKM10/Android 17. Default OFF (OEM Vulkan). When enabled with scope=system the ICD is bound system-wide; SurfaceFlinger/RenderEngine must stay on skiagl (the bundled preset does this). GPU imports are forced uncached to avoid Mali GPU_SHAREABILITY_FAULT. Toggle from the module Action button and reboot.
+description=PanVK WSI7 stable release (Mesa 26.3 + 019-034 patches) for PGKM10/Android 17. Fixes the Mali GPU_SHAREABILITY_FAULT (GPU-uncached imports) that killed SystemUI under HWUI Vulkan, and the one-shot Android acquire replay that fixed WeChat official-account freezes. Default OFF; enable with the Action button. OpenGL/EGL and SurfaceFlinger RenderEngine stay on the OEM GL path.
