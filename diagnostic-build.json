@@ -25,7 +25,8 @@
     "diagnostics/029-bounded-queue-caller-trace.patch",
     "diagnostics/030-one-shot-android-acquire-replay.patch",
     "patches/031-kbase-import-coherency.patch",
-    "patches/032-afbc-switch.patch"
+    "patches/032-afbc-switch.patch",
+    "patches/033-afbc-linear-import.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false

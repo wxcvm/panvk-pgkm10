@@ -1,0 +1,68 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: log AFBC images and allow forcing linear imports
+
+Patch 032 could not disable AFBC for explicitly-imported gralloc images
+because panvk_image_get_explicit_mod() accepts the modifier directly and
+release builds drop the can_use_mod() assertion.  Wrap the modifier
+selection, log every AFBC image (format/extent/modifier/usage) and add
+debug.mesa.movecert.afbc.linear_import to force imported AFBC images to
+LINEAR for the A/B experiment on the GPU_SHAREABILITY_FAULT.
+
+--- a/src/panfrost/vulkan/panvk_image.c
++++ b/src/panfrost/vulkan/panvk_image.c
+@@ -158,6 +158,24 @@ select_plane_pfmt(struct panvk_image *image, uint64_t mod, unsigned plane)
+    return vk_format_to_pipe_format(plane_format);
+ }
+ 
++static bool
++panvk_afbc_linear_import(void)
++{
++   static int forced = -1;
++   if (forced < 0) {
++      extern int __system_property_get(const char *name, char *value);
++      char value[92] = { 0 };
++      forced = __system_property_get("debug.mesa.movecert.afbc.linear_import",
++                                     value) > 0 &&
++               (value[0] == '1' || value[0] == 't' || value[0] == 'T' ||
++                value[0] == 'y' || value[0] == 'Y');
++   }
++   return forced;
++}
++
++/* Rename the original modifier selection so the wrapper can post-process it. */
++#define panvk_image_get_mod panvk_image_get_mod_raw
++
+ static bool
+ panvk_afbc_disabled_by_prop(void)
+ {
+@@ -371,6 +389,30 @@ panvk_image_get_mod(struct panvk_image *image,
+    return panvk_image_get_mod_from_list(image, &iusage, NULL, 0);
+ }
+ 
++#undef panvk_image_get_mod
++
++static uint64_t
++panvk_image_get_mod(struct panvk_image *image,
++                    const VkImageCreateInfo *pCreateInfo)
++{
++   uint64_t mod = panvk_image_get_mod_raw(image, pCreateInfo);
++
++   if (drm_is_afbc(mod)) {
++      mesa_logi("movecert: afbc image fmt=%u extent=%ux%u mod=0x%llx "
++                "usage=0x%x tiling=%u samples=%u",
++                image->vk.format, image->vk.extent.width,
++                image->vk.extent.height, (unsigned long long)mod,
++                image->vk.usage, image->vk.tiling, image->vk.samples);
++      if (panvk_afbc_linear_import()) {
++         mesa_logi("movecert: forcing LINEAR for AFBC import (fmt=%u mod=0x%llx)",
++                   image->vk.format, (unsigned long long)mod);
++         mod = DRM_FORMAT_MOD_LINEAR;
++      }
++   }
++
++   return mod;
++}
++
+ static bool
+ is_disjoint(const struct panvk_image *image)
+ {
