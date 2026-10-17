@@ -1,0 +1,6 @@
+id=panvk-wsi7-global-test
+name=PanVK WSI7 global test (fail-safe)
+version=0.1.0-test
+versionCode=1
+author=wxcvm
+description=Experimental global PanVK HAL test for PGKM10: binds wsi7 ICD + ColorX compatibility copy at boot, sets acq.replay/afbc.align, auto-disables after 3 incomplete boots. Not for daily use.
