@@ -1,0 +1,90 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: log YU10 AHB image init, layout and memory
+ requirements
+
+Patch 036 mapped the opaque YU10 external format to the packed YUV pipe
+format but vkAllocateMemory still fails with VK_ERROR_INITIALIZATION_FAILED.
+Add targeted MESA logging around panvk_android_ahb_image_init(), the
+deferred panvk_image_init()/layout path and the AHB memory requirement
+import so the failing piece is visible in logcat.
+
+--- a/src/panfrost/vulkan/panvk_android.c
++++ b/src/panfrost/vulkan/panvk_android.c
+@@ -236,6 +236,14 @@ panvk_android_ahb_image_init(struct AHardwareBuffer *ahb,
+       vk_android_get_ahb_layout(ahb, &mod_info, layouts, PANVK_MAX_PLANES);
+    if (result != VK_SUCCESS)
+       return result;
++   mesa_logi("movecert: ahb layout mod=0x%llx planes=%u off0=%llu pitch0=%llu "
++             "fmt=0x%x extent=%ux%u",
++             (unsigned long long)mod_info.drmFormatModifier,
++             mod_info.drmFormatModifierPlaneCount,
++             (unsigned long long)layouts[0].offset,
++             (unsigned long long)layouts[0].rowPitch,
++             (unsigned)img->vk.format, img->vk.extent.width,
++             img->vk.extent.height);
+    __vk_append_struct(img->vk.android_deferred_create_info, &mod_info);
+ 
+    VkExternalMemoryImageCreateInfo external_info = {
+@@ -245,6 +253,10 @@ panvk_android_ahb_image_init(struct AHardwareBuffer *ahb,
+    __vk_append_struct(img->vk.android_deferred_create_info, &external_info);
+ 
+    result = panvk_image_init(img, img->vk.android_deferred_create_info);
++   mesa_logi("movecert: ahb image init result=%d plane_count=%u pfmt=%u",
++             (int)result, img->plane_count,
++             result == VK_SUCCESS ? (unsigned)img->planes[0].image.props.format
++                                  : 0);
+    if (result != VK_SUCCESS)
+       return result;
+ 
+@@ -307,7 +319,7 @@ panvk_android_import_ahb_memory(VkDevice device,
+ 
+    VkImage img_handle = VK_NULL_HANDLE;
+    VkBuffer buf_handle = VK_NULL_HANDLE;
+-   VkMemoryRequirements mem_reqs;
++   VkMemoryRequirements mem_reqs = { 0 };
+ 
+    /* Fix allocationSize and memoryTypeIndex. */
+    const VkMemoryDedicatedAllocateInfo *dedicated_info = vk_find_struct_const(
+@@ -320,6 +332,10 @@ panvk_android_import_ahb_memory(VkDevice device,
+          result = panvk_android_get_image_mem_reqs(device, img_handle,
+                                                    dma_buf_fd, &mem_reqs);
+       }
++      mesa_logi("movecert: ahb mem import result=%d size=%llu memtype_bits=0x%x "
++                "dma_buf_size=%llu",
++                (int)result, (unsigned long long)mem_reqs.size,
++                mem_reqs.memoryTypeBits, (unsigned long long)dma_buf_size);
+    } else if (dedicated_info && dedicated_info->buffer != VK_NULL_HANDLE) {
+       buf_handle = dedicated_info->buffer;
+       result = panvk_android_get_buffer_mem_reqs(device, buf_handle, dma_buf_fd,
+
+--- a/src/panfrost/vulkan/panvk_image.c
++++ b/src/panfrost/vulkan/panvk_image.c
+@@ -601,6 +601,12 @@ panvk_image_init_layouts(struct panvk_image *image,
+ 
+    const struct pan_mod_handler *mod_handler =
+       pan_mod_get_handler(arch, image->vk.drm_format_mod);
++   mesa_logi("movecert: image layout fmt=0x%x extent=%ux%u tiling=%u "
++             "mod=0x%llx planes=%u explicit=%d mod_handler=%s",
++             (unsigned)image->vk.format, image->vk.extent.width,
++             image->vk.extent.height, image->vk.tiling,
++             (unsigned long long)image->vk.drm_format_mod, image->plane_count,
++             explicit_info != NULL, mod_handler ? "yes" : "no");
+    const bool should_checksum =
+       arch >= 10 && panvk_should_checksum(image, pCreateInfo);
+    image->crc_safe_external = should_checksum && wsi_info != NULL;
+@@ -644,6 +650,15 @@ panvk_image_init_layouts(struct panvk_image *image,
+ 
+       pan_img->planes[pan_plane] = &image->planes[plane].plane;
+       if (!pan_image_layout_init(arch, pan_img, pan_plane, &plane_layout)) {
++         mesa_logi("movecert: layout init failed fmt=0x%x pfmt=%u plane=%u "
++                   "mod=0x%llx off=%llu pitch=%llu extent=%ux%u",
++                   (unsigned)image->vk.format,
++                   (unsigned)pan_img->props.format, plane,
++                   (unsigned long long)image->vk.drm_format_mod,
++                   (unsigned long long)plane_layout.offset_B,
++                   (unsigned long long)plane_layout.wsi_row_pitch_B,
++                   pan_img->props.extent_px.width,
++                   pan_img->props.extent_px.height);
+          return panvk_error(image->vk.base.device,
+                             VK_ERROR_INITIALIZATION_FAILED);
+       }
