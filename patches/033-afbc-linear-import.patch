@@ -35,7 +35,7 @@ LINEAR for the A/B experiment on the GPU_SHAREABILITY_FAULT.
  static bool
  panvk_afbc_disabled_by_prop(void)
  {
-@@ -371,6 +389,30 @@ panvk_image_get_mod(struct panvk_image *image,
+@@ -371,6 +389,31 @@ panvk_image_get_mod(struct panvk_image *image,
     return panvk_image_get_mod_from_list(image, &iusage, NULL, 0);
  }
  
@@ -49,10 +49,11 @@ LINEAR for the A/B experiment on the GPU_SHAREABILITY_FAULT.
 +
 +   if (drm_is_afbc(mod)) {
 +      mesa_logi("movecert: afbc image fmt=%u extent=%ux%u mod=0x%llx "
-+                "usage=0x%x tiling=%u samples=%u",
++                "usage=0x%llx tiling=%u samples=%u",
 +                image->vk.format, image->vk.extent.width,
 +                image->vk.extent.height, (unsigned long long)mod,
-+                image->vk.usage, image->vk.tiling, image->vk.samples);
++                (unsigned long long)image->vk.usage, image->vk.tiling,
++                image->vk.samples);
 +      if (panvk_afbc_linear_import()) {
 +         mesa_logi("movecert: forcing LINEAR for AFBC import (fmt=%u mod=0x%llx)",
 +                   image->vk.format, (unsigned long long)mod);
