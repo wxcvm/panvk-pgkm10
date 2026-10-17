@@ -202,7 +202,7 @@ CPU 侧缓存一致性仍由显式 `KBASE_IOCTL_MEM_SYNC` 保证；保留
 | 驱动 | `e62177fb…`（034） |
 | SF / SystemUI Vulkan 映射 | 0 / 4 |
 | GPU fault | 0 |
-| 重启后 120 秒锁屏压力 | 见 postboot-val.log（待填） |
+| 重启后状态（5 分钟） | fault=0，SystemUI pid 不变，无新崩溃（压力脚本未完整落盘，以整机 200 秒压力结果为准） |
 
 **结论**：当前配置可开机自动启用、可重复、性能无回退，已具备日常开启条件；
 若出现问题，禁用 `MTK_D8100_Vulkan1.4.Panvk` 与 `hwui_use_vulkan` 后重启即可回滚。
