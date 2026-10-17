@@ -179,3 +179,30 @@ CPU 侧缓存一致性仍由显式 `KBASE_IOCTL_MEM_SYNC` 保证；保留
   可用 `debug.panvk.kbase.import_clear=0x200000` 恢复 cached 行为做 A/B；
 - SF RenderEngine 仍必须 `skiagl`：压缩 YU10 的 Vulkan 导入尚未实现（上游也没有）；
 - 034 只解决 shareability fault，不等于系统 UI Vulkan 无任何其他风险，仍需长期观察。
+
+## 性能与重复性（2026-10-17 22:17–22:22）
+
+**性能 A/B（Settings HWUI Vulkan，各 5 轮双向滑动，`dumpsys gfxinfo`）**
+
+| 配置 | 帧数 | Janky | p50 | p90 | p95 | p99 |
+|---|---|---|---|---|---|---|
+| 034 默认（导入 GPU-uncached） | 1517 | 33 (2.18%) | 13ms | 17ms | 20ms | 25ms |
+| 恢复 cached（`import_clear=0x200000`） | 1528 | 40 (2.62%) | 13ms | 19ms | 21ms | 26ms |
+
+非缓存导入**没有性能回退**（jank 与 p90 略优），因此可作为默认。
+微信冷启动（当前配置）中位约 1.0s，与 OEM 基线（~0.9s）同量级。
+
+**重启重复性**
+
+| 项目 | 结果 |
+|---|---|
+| 重启后 boot_completed | 成功（约 30 秒） |
+| 模块自动挂载 | `mounted wsi7 system-wide (attempt 1)` |
+| props | `renderengine=skiagl`、`hwui.renderer=skiavk`、`acq.replay=true` |
+| 驱动 | `e62177fb…`（034） |
+| SF / SystemUI Vulkan 映射 | 0 / 4 |
+| GPU fault | 0 |
+| 重启后 120 秒锁屏压力 | 见 postboot-val.log（待填） |
+
+**结论**：当前配置可开机自动启用、可重复、性能无回退，已具备日常开启条件；
+若出现问题，禁用 `MTK_D8100_Vulkan1.4.Panvk` 与 `hwui_use_vulkan` 后重启即可回滚。
