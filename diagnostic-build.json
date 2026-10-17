@@ -1,6 +1,6 @@
 {
-  "name": "RC3-anbfix3-wsi6",
-  "status": "diagnostic only; identify callers of repeated temporary/permanent semaphore waits; global compatibility unverified",
+  "name": "RC3-anbfix3-wsi7",
+  "status": "diagnostic compatibility candidate; default-off one-shot Android acquire replay; device acceptance pending",
   "panvk_source_commit": "fd6ed91eff1c8d3a83307a2348b959bb93797011",
   "mesa_commit": "5a07217f034b3e50d8c7c7794f97a2df1742613b",
   "upstream_profile": "g615-v11-csf",
@@ -22,7 +22,8 @@
     "../diagnostics/026-mapper-before-legacy-format.patch",
     "../diagnostics/027-bounded-kbase-sync-trace.patch",
     "../diagnostics/028-bounded-queue-dependency-trace.patch",
-    "../diagnostics/029-bounded-queue-caller-trace.patch"
+    "../diagnostics/029-bounded-queue-caller-trace.patch",
+    "../diagnostics/030-one-shot-android-acquire-replay.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false

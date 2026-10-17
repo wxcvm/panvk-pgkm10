@@ -1,0 +1,204 @@
+From: MoveCertificate contributors
+Subject: [PATCH] vulkan: opt-in one-shot same-queue Android acquire replay
+
+A captured application waits its acquire semaphore twice without a new signal.
+Retain a separate copy of the real external acquire fence for one additional
+same-queue wait, only after AcquireImageANDROID and only for binary semaphores
+whose permanent payload has never been signaled, imported or shared. Signals,
+imports and destruction invalidate the copy. Ordinary imports are unchanged.
+The permanent payload is never overwritten and no unsignaled fence is faked.
+
+Default-off MOVECERT_ACQ_REPLAY is diagnostic compatibility, not a fix to
+valid Vulkan semantics. No global installation or default activation.
+
+--- a/src/vulkan/runtime/vk_semaphore.h
++++ b/src/vulkan/runtime/vk_semaphore.h
+@@ -31,6 +31,7 @@
+ #endif
+ 
+ struct vk_sync;
++struct vk_queue;
+ 
+ struct vk_semaphore {
+    struct vk_object_base base;
+@@ -49,6 +50,15 @@
+     */
+    struct vk_sync *temporary;
+ 
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++   /* Opt-in compatibility for one repeated acquire wait on the same queue.
++    * This owns a separate copy of the real acquire fence, never permanent.
++    */
++   struct vk_sync *android_acquire_replay;
++   struct vk_queue *android_acquire_replay_queue;
++   bool android_permanent_used;
++#endif
++
+    /** Permanent semaphore state.
+     *
+     * Every semaphore has some form of permanent state.
+@@ -64,6 +74,13 @@
+ void vk_semaphore_reset_temporary(struct vk_device *device,
+                                   struct vk_semaphore *semaphore);
+ 
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++void vk_semaphore_reset_acquire_replay(struct vk_device *device,
++                                      struct vk_semaphore *semaphore);
++VkResult vk_semaphore_prepare_acquire_replay(struct vk_device *device,
++                                            struct vk_semaphore *semaphore);
++#endif
++
+ static inline struct vk_sync *
+ vk_semaphore_get_active_sync(struct vk_semaphore *semaphore)
+ {
+--- a/src/vulkan/runtime/vk_semaphore.c
++++ b/src/vulkan/runtime/vk_semaphore.c
+@@ -185,6 +185,9 @@
+       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+ 
+    semaphore->type = semaphore_type;
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++   semaphore->android_permanent_used = handle_types != 0;
++#endif
+ 
+    enum vk_sync_flags sync_flags = 0;
+    if (semaphore_type == VK_SEMAPHORE_TYPE_TIMELINE)
+@@ -218,10 +221,59 @@
+    return VK_SUCCESS;
+ }
+ 
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++void
++vk_semaphore_reset_acquire_replay(struct vk_device *device,
++                                 struct vk_semaphore *semaphore)
++{
++   if (semaphore->android_acquire_replay)
++      vk_sync_destroy(device, semaphore->android_acquire_replay);
++   semaphore->android_acquire_replay = NULL;
++   semaphore->android_acquire_replay_queue = NULL;
++}
++
++VkResult
++vk_semaphore_prepare_acquire_replay(struct vk_device *device,
++                                   struct vk_semaphore *semaphore)
++{
++   vk_semaphore_reset_acquire_replay(device, semaphore);
++   if (semaphore->type != VK_SEMAPHORE_TYPE_BINARY ||
++       semaphore->android_permanent_used || !semaphore->temporary ||
++       device->submit_mode != VK_QUEUE_SUBMIT_MODE_DEFERRED)
++      return VK_SUCCESS;
++
++   const struct vk_sync_type *type = semaphore->temporary->type;
++   if (!type->export_sync_file || !type->import_sync_file)
++      return VK_SUCCESS;
++
++   struct vk_sync *replay = NULL;
++   VkResult result = vk_sync_create(device, type, 0, 0, &replay);
++   if (result != VK_SUCCESS)
++      return result;
++
++   int fd = -1;
++   result = vk_sync_export_sync_file(device, semaphore->temporary, &fd);
++   if (result == VK_SUCCESS) {
++      result = vk_sync_import_sync_file(device, replay, fd);
++      if (fd >= 0)
++         close(fd);
++   }
++   if (result != VK_SUCCESS) {
++      vk_sync_destroy(device, replay);
++      return result;
++   }
++   semaphore->android_acquire_replay = replay;
++   return VK_SUCCESS;
++}
++#endif
++
+ void
+ vk_semaphore_reset_temporary(struct vk_device *device,
+                              struct vk_semaphore *semaphore)
+ {
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++   vk_semaphore_reset_acquire_replay(device, semaphore);
++#endif
+    if (semaphore->temporary == NULL)
+       return;
+ 
+@@ -609,6 +661,12 @@
+     *
+     * If the import fails, we leave the file descriptor open.
+     */
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++   if (!temporary) {
++      semaphore->android_permanent_used = true;
++      vk_semaphore_reset_acquire_replay(device, semaphore);
++   }
++#endif
+    if (fd != -1)
+       close(fd);
+ 
+--- a/src/vulkan/runtime/vk_queue.c
++++ b/src/vulkan/runtime/vk_queue.c
+@@ -321,6 +321,18 @@
+       assert(semaphore->type == VK_SEMAPHORE_TYPE_BINARY);
+       sync = submit->_wait_temps[submit->wait_count] = semaphore->temporary;
+       semaphore->temporary = NULL;
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++      if (semaphore->android_acquire_replay)
++         semaphore->android_acquire_replay_queue = queue;
++   } else if (semaphore->android_acquire_replay &&
++              !semaphore->android_permanent_used &&
++              semaphore->android_acquire_replay_queue == queue) {
++      sync = submit->_wait_temps[submit->wait_count] =
++         semaphore->android_acquire_replay;
++      semaphore->android_acquire_replay = NULL;
++      semaphore->android_acquire_replay_queue = NULL;
++      movecert_queue_trace("acquire-replay", queue, submit, semaphore, sync, 0);
++#endif
+    } else {
+       if (semaphore->type == VK_SEMAPHORE_TYPE_BINARY) {
+          if (vk_device_supports_threaded_submit(queue->base.device))
+@@ -354,6 +366,11 @@
+    VK_FROM_HANDLE(vk_semaphore, semaphore, signal_info->semaphore);
+ 
+    struct vk_sync *sync = vk_semaphore_get_active_sync(semaphore);
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++   vk_semaphore_reset_acquire_replay(queue->base.device, semaphore);
++   if (sync == &semaphore->permanent)
++      semaphore->android_permanent_used = true;
++#endif
+    uint64_t signal_value = signal_info->value;
+    if (semaphore->type == VK_SEMAPHORE_TYPE_TIMELINE) {
+       if (signal_value == 0) {
+--- a/src/vulkan/runtime/vk_android.c
++++ b/src/vulkan/runtime/vk_android.c
+@@ -33,6 +33,7 @@
+ #include "vk_log.h"
+ #include "vk_physical_device.h"
+ #include "vk_queue.h"
++#include "vk_semaphore.h"
+ #include "vk_util.h"
+ 
+ #include "c11/threads.h"
+@@ -497,6 +498,9 @@
+    return setup_gralloc0_usage(format, imageUsage, grallocUsage);
+ }
+ 
++
++/* Diagnostic compatibility only. This must remain off by default. */
++DEBUG_GET_ONCE_BOOL_OPTION(movecert_acquire_replay, "MOVECERT_ACQ_REPLAY", false)
+ 
+ VKAPI_ATTR VkResult VKAPI_CALL
+ vk_common_AcquireImageANDROID(VkDevice _device,
+@@ -566,6 +570,12 @@
+       result = device->dispatch_table.ImportFenceFdKHR(_device, &info);
+       if (result == VK_SUCCESS)
+          fence_fd = -1; /* The driver took ownership */
++   }
++
++   if (result == VK_SUCCESS && semaphore != VK_NULL_HANDLE &&
++       debug_get_option_movecert_acquire_replay()) {
++      VK_FROM_HANDLE(vk_semaphore, sem, semaphore);
++      result = vk_semaphore_prepare_acquire_replay(device, sem);
+    }
+ 
+    if (semaphore_fd >= 0)
