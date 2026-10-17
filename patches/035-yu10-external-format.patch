@@ -1,0 +1,63 @@
+From: MoveCertificate contributors
+Subject: [PATCH] android: accept YU10 (DRM_FORMAT_YUV420_10BIT) as an
+ opaque external format
+
+Beta 1.1.0 step 1/3: SurfaceFlinger's RenderEngine-Vulkan path fails on
+the lock-screen 10-bit video layer because
+vkGetAndroidHardwareBufferPropertiesANDROID() rejects the gralloc fourcc
+DRM_FORMAT_YUV420_10BIT (MTK 'YU10', AFBC-only).  Expose it as an opaque
+external format and answer the property query without asking the driver
+about a non-existent VkFormat.
+
+--- a/src/vulkan/runtime/vk_android.h
++++ b/src/vulkan/runtime/vk_android.h
+@@ -28,6 +28,13 @@
+ #include "vulkan/vulkan_core.h"
+ #include "vulkan/vk_android_native_buffer.h"
+ 
++/* Opaque VkExternalFormatANDROID value for single-plane 10-bit YUV 4:2:0
++ * gralloc buffers (DRM_FORMAT_YUV420_10BIT, a.k.a. YU10).  Vulkan has no
++ * standard VkFormat for this layout, so it is passed through as an opaque
++ * external format and interpreted by the driver.  The value is chosen
++ * outside the VkFormat enum range. */
++#define VK_ANDROID_EXTERNAL_FORMAT_YUV420_10BIT ((VkFormat)0x7f000001)
++
+ #include "util/detect_os.h"
+ 
+ #ifdef __cplusplus
+
+--- a/src/vulkan/runtime/vk_android.c
++++ b/src/vulkan/runtime/vk_android.c
+@@ -1241,6 +1241,11 @@ get_ahb_buffer_format_properties2(
+    case DRM_FORMAT_P210:
+       external_format = VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16;
+       break;
++   case DRM_FORMAT_YUV420_10BIT:
++      /* MTK YU10: single-plane 10-bit YUV 4:2:0, only usable with an AFBC
++       * modifier.  Expose it as an opaque external format (no VkFormat). */
++      external_format = VK_ANDROID_EXTERNAL_FORMAT_YUV420_10BIT;
++      break;
+    case DRM_FORMAT_XBGR8888:
+       /* This can be resolved from IMPLEMENTATION_DEFINED AHB format */
+       external_format = VK_FORMAT_R8G8B8A8_UNORM;
+@@ -1285,10 +1290,17 @@ get_ahb_buffer_format_properties2(
+ 
+ finish:
+ 
+-   device->physical->dispatch_table.GetPhysicalDeviceFormatProperties2(
+-      (VkPhysicalDevice)device->physical, external_format, &format_properties);
++   if (external_format == VK_ANDROID_EXTERNAL_FORMAT_YUV420_10BIT) {
++      /* Opaque single-plane 10-bit YUV: there is no VkFormat to query. */
++      p->formatFeatures = VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT;
++   } else {
++      device->physical->dispatch_table.GetPhysicalDeviceFormatProperties2(
++         (VkPhysicalDevice)device->physical, external_format,
++         &format_properties);
+ 
+-   p->formatFeatures = format_properties.formatProperties.optimalTilingFeatures;
++      p->formatFeatures =
++         format_properties.formatProperties.optimalTilingFeatures;
++   }
+    p->externalFormat = external_format;
+ 
+    /* From vkGetAndroidHardwareBufferPropertiesANDROID spec:
