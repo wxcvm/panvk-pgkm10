@@ -1,0 +1,37 @@
+From: MoveCertificate contributors
+Subject: [PATCH] kbase: import gralloc buffers GPU-uncached to avoid
+ shareability faults
+
+A/B experiment on the GPU_SHAREABILITY_FAULT: forcing
+BASE_MEM_UNCACHED_GPU on every imported dma-buf makes the fault disappear
+under a lock/unlock + notification-shade stress that otherwise fails in
+4-8 seconds.  Imported buffers are cacheable CPU memory (CACHED_CPU in
+the kernel's out.flags) and cached GPU transactions on those pages
+conflict with their page-table shareability.  The backend already does
+explicit MEM_SYNC cache maintenance, so GPU-uncached imports are safe.
+
+--- a/src/panfrost/lib/kmod/kbase_kmod.c
++++ b/src/panfrost/lib/kmod/kbase_kmod.c
+@@ -1886,10 +1886,21 @@ kbase_kmod_import_dmabuf(struct pan_kmod_dev *dev,
+     * performs explicit cache maintenance (is_io_coherent == false), so the
+     * coherent-system hint is not needed.
+     */
++   /* kbase maps imported gralloc buffers as cacheable CPU memory
++    * (BASE_MEM_CACHED_CPU in out.flags).  Requesting cached GPU access for
++    * such shared buffers makes the GPU transactions' shareability disagree
++    * with the page-table attributes of the imported memory and the Mali MMU
++    * raises GPU_SHAREABILITY_FAULT (observed with ColorOS system buffers
++    * under HWUI/Vulkan: SystemUI dies a few seconds after a lock/unlock).
++    * Force GPU-uncached imports by default; CPU cache maintenance is still
++    * explicit through KBASE_IOCTL_MEM_SYNC.  Debug builds can still clear
++    * this bit via PANVK_KBASE_IMPORT_CLEAR /
++    * debug.panvk.kbase.import_clear for A/B runs.
++    */
+    uint64_t import_flags =
+       BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_CPU_WR |
+       BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
+-      BASE_MEM_IMPORT_SHARED;
++      BASE_MEM_IMPORT_SHARED | BASE_MEM_UNCACHED_GPU;
+ 
+    if (kmod_flags & PAN_KMOD_BO_FLAG_GPU_UNCACHED)
+       import_flags |= BASE_MEM_UNCACHED_GPU;
