@@ -49,3 +49,21 @@ v1.0.0 已解决：
 
 Beta 版本号计划 `1.1.0-beta1`；在正式发布前保持 `enable_global` 默认关闭、
 `skiavkthreaded` 默认关闭。
+
+## 进展（2026-10-17 22:40，beta step 1/3）
+
+补丁 `035-yu10-external-format.patch` 已构建（驱动 `2e1d697c…`，17 个补丁）并在
+探针 `gpu-p010-import-probe` 上验证：
+
+| 步骤 | 结果 |
+|---|---|
+| AHB 属性查询（case2，format 54 / usage 0x400900） | **成功**（此前 `-1000072003`）；`external=2130706433`（不透明外部格式 `0x7f000001`）|
+| `CreateImage` | **成功** |
+| `AllocateMemory` | 失败 `-3`（`VK_ERROR_INITIALIZATION_FAILED`）|
+| 线性 P010（case1）回归 | 成功，无回归 |
+
+下一步（补丁 036，beta step 2/3）：PanVK 侧把该外部格式映射为
+`PIPE_FORMAT_Y10U10V10_420_UNORM_PACKED`（AFBC 布局用），修正 `get_plane_count`/
+`select_plane_pfmt`/can_use_mod 对不透明格式的处理，并让图像内存需求/AHB 导入内存
+类型匹配（当前 AllocateMemory 失败点）。之后 step 3 处理采样/YCbCr lowering 与
+`skiavkthreaded` 运行时验证。
