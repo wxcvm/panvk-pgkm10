@@ -67,3 +67,27 @@ Beta 版本号计划 `1.1.0-beta1`；在正式发布前保持 `enable_global` �
 `select_plane_pfmt`/can_use_mod 对不透明格式的处理，并让图像内存需求/AHB 导入内存
 类型匹配（当前 AllocateMemory 失败点）。之后 step 3 处理采样/YCbCr lowering 与
 `skiavkthreaded` 运行时验证。
+
+## 进展（2026-10-17 23:52，beta step 2/3 完成）
+
+补丁 `036`（PanVK 不透明外部格式映射）、`037`（诊断日志）、`038`（AFBC 打包格式修正）
+构建并验证后，探针 `gpu-p010-import-probe` case2（format 54 / usage 0x400900 /
+1272×2772 / AFBC YU10）**全链路通过**：
+
+| 步骤 | 结果 |
+|---|---|
+| AHB 属性查询 | 成功，external=0x7f000001 |
+| CreateImage | 成功 |
+| AllocateMemory | **成功**（此前 `-3`）|
+| BindImageMemory | 成功 |
+| VkSamplerYcbcrConversion | 成功 |
+| CreateImageView | 成功 |
+| probe failures | **0** |
+
+关键细节：AFBC 布局必须使用 `PIPE_FORMAT_R10G10B10_420_UNORM_PACKED`
+（`PAN_AFBC_MODE_YUV420_6C10`），而非原生 `Y10U10V10_420_UNORM_PACKED`（无 AFBC 模式）；
+AFBC 布局尺寸 6,904,320 B ≤ dma-buf 7,434,240 B。
+
+下一步（beta step 3/3）：验证**采样/合成**（YCbCr conversion + shader CSC），
+再在运行时切换 `debug.renderengine.backend=skiavkthreaded` 做 SF 锁屏/10-bit 视频
+压力测试；失败即回滚 `skiagl`。
