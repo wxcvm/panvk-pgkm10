@@ -73,3 +73,24 @@
 - **`skiavkthreaded` 暂不支持**（压缩 YU10 的 Vulkan 导入缺失），计划在下一个测试版
   `1.1.0-beta1` 补齐，详见 `docs/BETA-SKIAVKTHREADED-PLAN.md`；
 - 回滚：禁用 `MTK_D8100_Vulkan1.4.Panvk` 与 `hwui_use_vulkan` 后重启。
+
+## 永久启用 skiavkthreaded（2026-10-18 验证）
+
+本机已验证 `skiavkthreaded` + HWUI Vulkan + YU10 导入可用（SF `RE Vulkan
+(Ganesh)`、`Vulkan device initialized: 1`、SystemUI/launcher/Settings 均映射
+Vulkan、`Pipeline=Skia (Vulkan)`）。
+
+启用步骤（需 038 驱动 payload）：
+
+1. 驱动模块：`enable_global=1`、`scope=system`，payload 为 038（本 beta ZIP）；
+2. `hwui_use_vulkan` 模块启用，`system.prop`：
+   `debug.renderengine.backend=skiavkthreaded`、
+   `debug.renderengine.vulkan=true`、`debug.hwui.renderer=skiavk`、
+   `ro.hwui.use_vulkan=true`；
+3. 重启。
+
+模块自带**运行时看门狗**（`service.sh`）：若 SurfaceFlinger 在 10 分钟内重启
+≥3 次，自动把配置回退为 `skiagl`、禁用 `hwui_use_vulkan` 并重启，防止崩溃循环。
+
+一键回滚：禁用 `hwui_use_vulkan`（或把 `debug.renderengine.backend` 改为
+`skiagl`、`debug.renderengine.vulkan=false`）后重启。

@@ -94,3 +94,11 @@ Conversion=0  CreateImageView=0  → failures=0
 - SF Vulkan 在 ColorOS 上仍属实验配置（曾出现 abort/黑屏历史）；建议先备份、
   保留一键回滚（禁用 hwui 模块 + 驱动模块后重启）；
 - 长时间/游戏/10-bit HDR 视频播放仍未验证，建议观察后续稳定性。
+
+## 永久启用（2026-10-18 已在本机生效）
+
+本机已永久启用该配置（038 驱动 + `skiavkthreaded` + `vulkan=true` +
+`hwui.renderer=skiavk`），并加载运行时看门狗：SF 10 分钟内重启 ≥3 次会自动回退
+`skiagl`、禁用 hwui 模块并重启。重启后验证：SF `RE Vulkan (Ganesh)`、
+`Vulkan device initialized: 1`、HWUI `Pipeline=Skia (Vulkan)`、GPU fault 0。
+回滚：禁用 hwui 模块后重启。
