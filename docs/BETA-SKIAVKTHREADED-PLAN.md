@@ -91,3 +91,9 @@ AFBC 布局尺寸 6,904,320 B ≤ dma-buf 7,434,240 B。
 下一步（beta step 3/3）：验证**采样/合成**（YCbCr conversion + shader CSC），
 再在运行时切换 `debug.renderengine.backend=skiavkthreaded` 做 SF 锁屏/10-bit 视频
 压力测试；失败即回滚 `skiagl`。
+
+## 完成（2026-10-18 09:50）
+
+Step 1-3 全部完成：探针全链路通过 + 运行时 SF RenderEngine Vulkan 闭环验证通过
+（YU10 导入成功、无 abort/fault、视觉正确）。详见
+`docs/RELEASE-1.1.0-beta1.md` 的“运行时闭环验证成功”一节。

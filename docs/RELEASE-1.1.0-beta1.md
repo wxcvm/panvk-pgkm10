@@ -61,3 +61,36 @@ Conversion=0  CreateImageView=0  → failures=0
 
 安全恢复：已把 `hwui_use_vulkan` 禁用、`renderengine.backend` 固定 `skiagl`、
 驱动模块恢复 034 稳定 payload；设备正常。
+
+## 运行时闭环验证成功（2026-10-18 09:43-09:50，一次实验启动）
+
+配置：038 驱动系统级挂载 + `debug.renderengine.backend=skiavkthreaded`
++ `debug.renderengine.vulkan=true` + `debug.hwui.renderer=skiavk`（HWUI Vulkan）。
+
+| 验证项 | 结果 |
+|---|---|
+| SurfaceFlinger RenderEngine | **`RE Vulkan (Ganesh)`，`Vulkan device initialized: 1`** |
+| SF Vulkan 映射 | 4 个 `vulkan.mali` 映射（wsi7 已加载） |
+| HWUI Vulkan（真实生效，不只是属性） | SystemUI/launcher/Settings 各 4 个 Vulkan 映射；`dumpsys gfxinfo` → `Pipeline=Skia (Vulkan)`；logcat `SkiaVulkanPipeline` |
+| **SF 导入 YU10 十位层** | 成功：`ahb layout mod=0x800000000000041 fmt=0x7f000001 extent=1272x2772`（6 次锁屏合成） |
+| GPU fault / abort | **0 / 0**（此前 `Failed to create a valid texture` 未再出现） |
+| 稳定性 | 200+ 秒锁屏/解锁/通知栏交互，SF/SystemUI pid 不变，无 tombstone |
+| 视觉正确性 | 截图核对：系统 UI 与文件管理器界面颜色/文字正常，无花屏黑屏 |
+
+**结论**：`skiavkthreaded`（SF RenderEngine Vulkan）+ HWUI Vulkan + YU10 导入
+在本机（PGKM10 / Android 17 / MTK MT6895）已验证可用。
+
+### 如何启用（实验，默认仍关闭）
+
+1. 驱动模块用 038 payload（beta1 ZIP 即是），`enable_global=1`、`scope=system`；
+2. `hwui_use_vulkan` 模块：启用，并把 `system.prop` 改为
+   `debug.renderengine.backend=skiavkthreaded`、`debug.renderengine.vulkan=true`、
+   `debug.hwui.renderer=skiavk`；
+3. 重启；验证 `dumpsys SurfaceFlinger | grep "RE Vulkan"` 与
+   `dumpsys gfxinfo com.android.systemui | grep Pipeline`。
+
+### 风险
+
+- SF Vulkan 在 ColorOS 上仍属实验配置（曾出现 abort/黑屏历史）；建议先备份、
+  保留一键回滚（禁用 hwui 模块 + 驱动模块后重启）；
+- 长时间/游戏/10-bit HDR 视频播放仍未验证，建议观察后续稳定性。
