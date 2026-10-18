@@ -97,3 +97,10 @@ AFBC 布局尺寸 6,904,320 B ≤ dma-buf 7,434,240 B。
 Step 1-3 全部完成：探针全链路通过 + 运行时 SF RenderEngine Vulkan 闭环验证通过
 （YU10 导入成功、无 abort/fault、视觉正确）。详见
 `docs/RELEASE-1.1.0-beta1.md` 的“运行时闭环验证成功”一节。
+
+## 追加修复（2026-10-18）：HWUI Vulkan 的 AHB 兼容性崩溃
+
+HWUI Vulkan 在 ColorOS 私有/10-bit AHB（format 4096）上会
+`Invalid GrBackendFormat` abort（设置增强页、Twitter 等）。已改为 HWUI=GL、
+SF 保持 Vulkan；两个增强页面恢复正常、无花屏无闪退。详见
+`docs/RELEASE-1.1.0-beta1.md`。

@@ -102,3 +102,40 @@ Conversion=0  CreateImageView=0  → failures=0
 `skiagl`、禁用 hwui 模块并重启。重启后验证：SF `RE Vulkan (Ganesh)`、
 `Vulkan device initialized: 1`、HWUI `Pipeline=Skia (Vulkan)`、GPU fault 0。
 回滚：禁用 hwui 模块后重启。
+
+## 修复：设置「画质超清增强 / 视频色彩增强」闪退（2026-10-18 10:20）
+
+**现象**：进入 设置 → 显示与亮度 → 画质超清增强 / 视频色彩增强，约 1 秒后
+`com.android.settings` 闪退；Twitter 等含 10-bit 视频的应用也会崩溃。
+旧驱动 + 全局 Vulkan 时同样页面则是**花屏**而不是崩溃。
+
+**根因**：崩溃发生在 app 的 HWUI `RenderThread`，abort 信息：
+
+```
+frameworks/base/libs/hwui/AutoBackendTextureRelease.cpp
+Invalid GrBackendFormat. GrBackendApi==1, AHardwareBuffer_Format==4096.
+```
+
+即 **HWUI 的 Vulkan（Skia Vulkan/Ganesh）后端**在把 ColorOS 的厂商私有 /
+10-bit YUV AHB（format 4096）包装成 Skia texture 时，拿不到有效
+`GrBackendFormat`，直接 `LOG_ALWAYS_FATAL`。这是 Skia/HWUI Vulkan 路径对这些
+AHB 格式的限制，与 PanVK 驱动的 10-bit 导入能力无关（探针与 SF 均正常）；
+OEM 驱动下同一路径表现为花屏。
+
+**修复**：HWUI 固定使用 GL（`debug.hwui.renderer=skiagl`、
+`ro.hwui.use_vulkan=false`），**SurfaceFlinger 仍保持 Vulkan**
+（`debug.renderengine.backend=skiavkthreaded` + `debug.renderengine.vulkan=true`）。
+
+**验证（重启后）**：
+
+| 项 | 结果 |
+|---|---|
+| SF RenderEngine | `RE Vulkan (Ganesh)`、`Vulkan device initialized: 1`、4 个 Vulkan 映射 |
+| HWUI | `Pipeline=Skia (OpenGL)`、SystemUI 无 Vulkan 映射（GL 生效） |
+| 两个增强页面 | 均可进入，Settings pid 不变、无 abort（此前闪退） |
+| 花屏 | 不再出现（页面图像/文字正常） |
+| GPU fault | 0 |
+
+结论：**skiavkthreaded / SF Vulkan 保留可用；HWUI Vulkan 在本 ROM 上有该 AHB
+兼容性缺陷，暂不启用。** 一键回滚：把 `debug.renderengine.backend` 改回
+`skiagl` 后重启。
