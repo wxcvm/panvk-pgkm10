@@ -46,3 +46,18 @@ Conversion=0  CreateImageView=0  → failures=0
 - YU10 采样/合成正确性未验证（探针只覆盖属性/图像/内存/视图/转换创建）；
 - `skiavkthreaded` 未闭环，SF RenderEngine 崩溃风险仍在；
 - 游戏与 10-bit HDR 视频播放未覆盖。
+
+## 运行时 SF 测试结果（2026-10-18 00:19，失败且实验无效）
+
+- 尝试：hwui 预设 `debug.renderengine.backend=skiavkthreaded` +
+  `debug.renderengine.vulkan=true` 开机，让 SurfaceFlinger 使用 Vulkan RenderEngine；
+- 结果：SurfaceFlinger 仍在锁屏合成时 abort：
+  `Failed to create a valid texture [1272,2772] format:54 stride:1280 usage:4196608`
+  （tombstone_08），设备随后重启循环；
+- **重要**：该次实验时系统级挂载的是 `1.0.0` 的 034 驱动（不含 035–038），
+  因此 abort 属于已知的 YU10 导入缺失，**不能据此判断 038 的 YU10 导入是否足够**；
+- 结论：`skiavkthreaded` 的运行时闭环仍需用 **038 系统级挂载 + 受控测试环境**重做；
+  在手机日常环境反复尝试会导致 SF 崩溃循环，不建议在主力机直接开。
+
+安全恢复：已把 `hwui_use_vulkan` 禁用、`renderengine.backend` 固定 `skiagl`、
+驱动模块恢复 034 稳定 payload；设备正常。
