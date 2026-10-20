@@ -68,3 +68,13 @@ Vulkan 兼容性与性能，最后验证 SF `skiavkthreaded`。
 - 重启后 `/vendor/lib64/hw/mt6895/vulkan.mali.so` 恢复 OEM 文件
   sha256 `2ae46e5c85ff73ab3441b1acbd12e60d50247b0be56a19a825e2fae66050c5b0`；
 - `debug.renderengine.backend`/`debug.hwui.renderer` 回到系统默认，GPU fault 0，系统正常。
+
+## 性能清理（2026-10-20，源码检查后）
+
+- 发现诊断期补丁在热路径写日志：033（每个 AFBC 图像）、036（每个 YU10 图像）、
+  037（每次 AHB 导入/图像布局，无条件）；
+- 新增补丁 039 删除 033/036 的热路径日志；最终构建排除诊断 tracing 补丁
+  （022–025、027–029）与 037；
+- 干净序列：`019 020 021 026 030 031 032 033 034 035 036 038 039`
+  （见 `docs/PERFORMANCE-REVIEW.md`）；
+- 该清理只移除日志/诊断代码，不改算法路径；最终驱动作为 v1.1.1 发布。

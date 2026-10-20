@@ -1,0 +1,40 @@
+From: MoveCertificate contributors
+Subject: [PATCH] panvk: drop per-image diagnostic logging from the hot path
+
+The bring-up series logged every AFBC image creation (patch 033) and every
+external YU10 image (patch 036) with mesa_logi().  Both are hot paths used by
+SystemUI/SurfaceFlinger and every app, so the final performance-clean build
+removes that logging (and leaves patch 037 diagnostics out of the build).
+
+--- a/src/panfrost/vulkan/panvk_image.c
++++ b/src/panfrost/vulkan/panvk_image.c
+@@ -404,12 +404,6 @@ panvk_image_get_mod(struct panvk_image *image,
+    uint64_t mod = panvk_image_get_mod_raw(image, pCreateInfo);
+ 
+    if (drm_is_afbc(mod)) {
+-      mesa_logi("movecert: afbc image fmt=%u extent=%ux%u mod=0x%llx "
+-                "usage=0x%llx tiling=%u samples=%u",
+-                image->vk.format, image->vk.extent.width,
+-                image->vk.extent.height, (unsigned long long)mod,
+-                (unsigned long long)image->vk.usage, image->vk.tiling,
+-                image->vk.samples);
+       if (panvk_afbc_linear_import()) {
+          mesa_logi("movecert: forcing LINEAR for AFBC import (fmt=%u mod=0x%llx)",
+                    image->vk.format, (unsigned long long)mod);
+@@ -684,16 +678,6 @@ panvk_image_init_layouts(struct panvk_image *image,
+                             VK_ERROR_INITIALIZATION_FAILED);
+    }
+ 
+-   if (panvk_format_is_external_yu10(image->vk.format)) {
+-      mesa_logi("movecert: external YU10 image extent=%ux%u mod=0x%llx "
+-                "planes=%u pfmt=%u offset=%llu size=%llu",
+-                image->vk.extent.width, image->vk.extent.height,
+-                (unsigned long long)image->vk.drm_format_mod,
+-                image->plane_count, image->planes[0].image.props.format,
+-                (unsigned long long)image->planes[0].plane.layout.slices[0].offset_B,
+-                (unsigned long long)image->planes[0].plane.layout.data_size_B);
+-   }
+-
+    return VK_SUCCESS;
+ }
+ 

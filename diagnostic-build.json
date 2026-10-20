@@ -1,6 +1,6 @@
 {
-  "name": "RC3-anbfix3-wsi7",
-  "status": "diagnostic compatibility candidate; default-off one-shot Android acquire replay; no forced coherent imports (031)",
+  "name": "final-release-perf-clean",
+  "status": "final performance-clean release: functional fixes only; diagnostic trace patches (022-025, 027-029) and per-image logging (033/036 log lines, patch 037) removed",
   "panvk_source_commit": "fd6ed91eff1c8d3a83307a2348b959bb93797011",
   "mesa_commit": "5a07217f034b3e50d8c7c7794f97a2df1742613b",
   "upstream_profile": "g615-v11-csf",
@@ -15,14 +15,7 @@
     "patches/019-anb-import-fd-discovery.patch",
     "patches/020-kbase-disable-drm-sync-payload-copy.patch",
     "patches/021-kbase-sync-file-waiter-lifetime.patch",
-    "diagnostics/022-bounded-workload-trace.patch",
-    "diagnostics/023-swapchain-allocation-diagnostic.patch",
-    "diagnostics/024-native-present-cache-diagnostic.patch",
-    "diagnostics/025-afbc-body-alignment-diagnostic.patch",
     "diagnostics/026-mapper-before-legacy-format.patch",
-    "diagnostics/027-bounded-kbase-sync-trace.patch",
-    "diagnostics/028-bounded-queue-dependency-trace.patch",
-    "diagnostics/029-bounded-queue-caller-trace.patch",
     "diagnostics/030-one-shot-android-acquire-replay.patch",
     "patches/031-kbase-import-coherency.patch",
     "patches/032-afbc-switch.patch",
@@ -30,8 +23,8 @@
     "patches/034-kbase-uncached-imports.patch",
     "patches/035-yu10-external-format.patch",
     "patches/036-panvk-yu10-image.patch",
-    "patches/037-yu10-diagnostics.patch",
-    "patches/038-yu10-afbc-format.patch"
+    "patches/038-yu10-afbc-format.patch",
+    "patches/039-strip-hotpath-logs.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false
