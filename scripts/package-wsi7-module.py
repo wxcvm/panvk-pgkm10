@@ -13,7 +13,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parent.parent
-DRIVER_SHA = "302232ed0407b8f173c73d4e5dd55461b9b9bbba1e02f7d0a98acd6c09d12d3a"
+DRIVER_SHA = "5eb3899da6f16a7f6b7e80aab1a693da032831d4db1c99817fbcc1f160a3d4a6"
 COLORX_PATCHED_SHA = "16c93822969608ce3662e3d01725438b1ab88d6c2c6c8b54bef9b2c0419db0b8"
 DRIVER_SOURCE_COMMIT = "43001017a03c463c950381b6e461dcb72e8cc539"
 MODULE_FILES = (
@@ -36,7 +36,7 @@ def digest(data: bytes) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--driver", type=Path, required=True, help="Pinned libvulkan_panfrost.so (wsi7)")
-    parser.add_argument("--output", type=Path, default=ROOT / "PanVK-WSI7-PGKM10-v1.1.0.zip")
+    parser.add_argument("--output", type=Path, default=ROOT / "PanVK-WSI7-PGKM10-v1.1.1.zip")
     args = parser.parse_args()
 
     driver_bytes = args.driver.read_bytes()

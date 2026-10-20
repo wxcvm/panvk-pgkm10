@@ -78,3 +78,13 @@ Vulkan 兼容性与性能，最后验证 SF `skiavkthreaded`。
 - 干净序列：`019 020 021 026 030 031 032 033 034 035 036 038 039`
   （见 `docs/PERFORMANCE-REVIEW.md`）；
 - 该清理只移除日志/诊断代码，不改算法路径；最终驱动作为 v1.1.1 发布。
+
+## v1.1.1 性能清理版（2026-10-20 构建验证）
+
+- 构建源：main 分支干净序列（14 补丁，见 `docs/PERFORMANCE-REVIEW.md`），CI run 成功；
+- 驱动：sha256 `5eb3899da6f16a7f6b7e80aab1a693da032831d4db1c99817fbcc1f160a3d4a6`（26,636,080 B，比 038 诊断版小 ~12 KB）；
+- 产物校验：`SOURCE.json` 仅含功能补丁；`strings` 检查确认所有热路径日志字符串
+  （`movecert: afbc image`、`movecert: external YU10`、`movecert: ahb layout`、
+  `movecert: image layout`、`movecert: layout init failed`、`movecert_queue_trace` 等）
+  **全部不存在**，只保留 opt-in 属性名与 `forcing LINEAR`（仅属性开启时打印）；
+- 该版本为最终发布产物。
