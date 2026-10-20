@@ -45,3 +45,26 @@ Vulkan 兼容性与性能，最后验证 SF `skiavkthreaded`。
 - 历史版本：`v1.0.0`（稳定配置）、`v1.1.0-beta1`（YU10 + skiavkthreaded 验证）
 - 过程文档：`docs/SHAREABILITY-FAULT-DIAGNOSIS.md`、`docs/BETA-SKIAVKTHREADED-PLAN.md`、
   `docs/RELEASE-1.1.0-beta1.md` 等
+
+## Vulkan 1.4 真实性验证（2026-10-20 实测）
+
+用系统 Vulkan loader（普通 App 路径）做深度探测，对比 OEM 驱动与 PanVK：
+
+| 项目 | OEM 原厂驱动 | PanVK（模块 038） |
+|---|---|---|
+| 设备 apiVersion | **1.1.177** | **1.4.363** |
+| 设备扩展数 | 77 | 186 |
+| 1.4 提升扩展（maintenance5/6/7/8、map_memory2、copy_memory_indirect、shader_float_controls2、shader_subgroup_rotate、global_priority） | 全部缺失 | **全部存在** |
+| 1.4 核心入口（vkCmdBindIndexBuffer2、vkGetRenderingAreaGranularity、vkGetDeviceImageSubresourceLayout、vkMapMemory2/UnmapMemory2、vkCopyMemoryToImage/ImageToMemory/ImageToImage、vkTransitionImageLayout、vkCmdPushDescriptorSet2/WithTemplate2） | 全部 NULL | **11/11 全部 present** |
+| 功能冒烟 | — | `vkCmdBindIndexBuffer2` 实际 recording 调用成功 |
+
+结论：模块并非只改版本字符串，而是**真实的 Vulkan 1.4 实现**（入口可解析、可调用），
+把设备从 OEM 的 Vulkan 1.1 提升到 1.4。注意：API 版本高 ≠ 游戏性能更好（性能取决于
+驱动实现质量，未做游戏/跑分对比）。
+
+## 回滚验证（2026-10-20，最终状态）
+
+- 已在 KernelSU 中停用 `MTK_D8100_Vulkan1.4.Panvk`；`hwui_use_vulkan` 已被用户移除；
+- 重启后 `/vendor/lib64/hw/mt6895/vulkan.mali.so` 恢复 OEM 文件
+  sha256 `2ae46e5c85ff73ab3441b1acbd12e60d50247b0be56a19a825e2fae66050c5b0`；
+- `debug.renderengine.backend`/`debug.hwui.renderer` 回到系统默认，GPU fault 0，系统正常。
