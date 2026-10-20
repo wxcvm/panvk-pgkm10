@@ -1,6 +1,6 @@
 id=MTK_D8100_Vulkan1.4.Panvk
 name=Dimensity 8100 PanVK WSI7 (Vulkan only)
-version=1.1.0-beta1
-versionCode=11
+version=1.1.0
+versionCode=12
 author=wxcvm; upstream zenithblue-oss
-description=PanVK WSI7 1.1.0-beta1 (Mesa 26.3 + 019-038 patches) for PGKM10/Android 17. Adds the AFBC YU10 (DRM_FORMAT_YUV420_10BIT) Vulkan import path so the 10-bit video/lock-screen layers that aborted SurfaceFlinger can now be created, bound and sampled; skiavkthreaded remains an experimental opt-in (SF RenderEngine stays skiagl by default). Includes the 1.0.0 fixes: GPU-uncached imports (shareability fault) and one-shot Android acquire replay (WeChat).
+description=PanVK WSI7 FINAL 1.1.0 (Mesa 26.3 + patches 019-038) for PGKM10/Android 17. Project conclusion: the driver fixes work (GPU-uncached imports for the SystemUI shareability fault, one-shot Android acquire replay for WeChat, AFBC YU10 Vulkan import, and SurfaceFlinger skiavkthreaded validated with Vulkan device initialized). HWUI Vulkan stays disabled because ColorOS/Skia aborts on vendor 10-bit AHB (format 4096). Final release; keep the OEM render path unless you explicitly want to experiment. See docs/FINAL-REPORT.md for results, limitations and rollback.

@@ -1,3 +1,11 @@
+# ⚠️ 最终状态（2026-10-20）
+
+本项目已**停止日常使用**并发布最终版本 v1.1.0。最终配置为「HWUI GL + SurfaceFlinger
+Vulkan（skiavkthreaded）」；由于 ColorOS/Skia 对厂商 10-bit AHB（format 4096）的
+Vulkan 包装缺陷（`Invalid GrBackendFormat` → abort），HWUI Vulkan 不可用。
+回滚：在 KernelSU 管理器禁用 `MTK_D8100_Vulkan1.4.Panvk` 与 `hwui_use_vulkan` 后重启。
+完整结论见仓库 `docs/FINAL-REPORT.md`。
+
 # PanVK WSI7 global-enable module
 
 把固定构建的 **PanVK WSI7**（Mesa 26.3 + 补丁 019–030）作为 64 位 Vulkan HAL 临时
