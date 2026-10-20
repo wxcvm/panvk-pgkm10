@@ -24,7 +24,8 @@
     "patches/035-yu10-external-format.patch",
     "patches/036-panvk-yu10-image.patch",
     "patches/038-yu10-afbc-format.patch",
-    "patches/039-strip-hotpath-logs.patch"
+    "patches/039-strip-hotpath-logs.patch",
+    "patches/040-strip-acquire-trace.patch"
   ],
   "open_gl_included": false,
   "global_installation_enabled": false

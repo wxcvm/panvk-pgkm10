@@ -1,0 +1,19 @@
+From: MoveCertificate contributors
+Subject: [PATCH] vulkan: drop diagnostic queue trace from acquire replay fix
+
+Patch 030 was developed on top of the opt-in queue tracing patches (028/029),
+which the final performance-clean build excludes.  Remove the leftover
+movecert_queue_trace() call so the functional acquire-replay fix no longer
+references the diagnostic tracing helpers.
+
+--- a/src/vulkan/runtime/vk_queue.c
++++ b/src/vulkan/runtime/vk_queue.c
+@@ -344,8 +344,7 @@
+       sync = submit->_wait_temps[submit->wait_count] =
+          semaphore->android_acquire_replay;
+       semaphore->android_acquire_replay = NULL;
+       semaphore->android_acquire_replay_queue = NULL;
+-      movecert_queue_trace("acquire-replay", queue, submit, semaphore, sync, 0);
+ #endif
+    } else {
+       if (semaphore->type == VK_SEMAPHORE_TYPE_BINARY) {
