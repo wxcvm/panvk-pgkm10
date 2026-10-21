@@ -2,8 +2,10 @@
 # Late-start service stage.
 #   scope=apps: bind the pinned ICD + device-generated ColorX copy into the app spawn
 #   namespaces (zygote/usap) so every newly started app uses PanVK while SurfaceFlinger,
-#   system_server and other system processes keep the OEM driver. This avoids the
-#   SurfaceFlinger P010/compressed-YU10 abort seen with a system-wide mount.
+#   system_server and other system processes keep the OEM driver.
+#   scope=system: post-fs-data already bound the init namespace; this device's zygote64
+#   clones its mount namespace before that mount lands and can rebuild it again before
+#   boot completes, so bind early and re-verify/re-bind after sys.boot_completed.
 #   Also marks a successful boot for the scope=system fail-safe.
 MODDIR=${0%/*}
 . "$MODDIR/common.sh"
@@ -31,15 +33,20 @@ wait_boot() {
     return 1
 }
 
-if [ "$enable_global" != 1 ] || [ "$scope" != apps ]; then
-    echo "enable_global=$enable_global scope=$scope: nothing to bind at service stage"
+if [ "$enable_global" != 1 ]; then
+    echo "enable_global=$enable_global: nothing to bind at service stage"
     wait_boot
     exit 0
 fi
 
-check_platform || { echo "STOP: unsupported platform or OEM baseline mismatch"; exit 1; }
+# The init namespace is already bound for scope=system, so the OEM baseline check
+# only applies to scope=apps.
 check_hash "$MODDIR/vulkan.mali.so" "$GPU_SHA" || { echo "STOP: driver payload mismatch"; exit 1; }
-prepare_colorx || { echo "STOP: ColorX compatibility copy unavailable"; exit 1; }
+if [ "$scope" = apps ]; then
+    check_platform || { echo "STOP: unsupported platform or OEM baseline mismatch"; exit 1; }
+    prepare_colorx || { echo "STOP: ColorX compatibility copy unavailable"; exit 1; }
+fi
+check_hash "$MODDIR/colorx-excluded.so" "$COLORX_PATCHED_SHA" || { echo "STOP: ColorX compatibility copy unavailable"; exit 1; }
 chown 0:0 "$MODDIR/vulkan.mali.so" "$MODDIR/colorx-excluded.so"
 chmod 644 "$MODDIR/vulkan.mali.so" "$MODDIR/colorx-excluded.so"
 chcon u:object_r:same_process_hal_file:s0 "$MODDIR/vulkan.mali.so" || exit 1
@@ -53,24 +60,50 @@ bind_one() {
     return 0
 }
 
-# Wait for the app spawn processes, then bind into each of their namespaces.
-mounted=0
-waited=0
-while [ "$waited" -lt 90 ]; do
+verify_one() {
+    pid=$1
+    [ -n "$pid" ] || return 1
+    h=$("$bb" nsenter -t "$pid" -m -- sha256sum "$GPU_TARGET" 2>/dev/null)
+    case "$h" in
+        "$GPU_SHA"\ *) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+bind_all_spawns() {
+    bound=0
+    total=0
     for name in zygote zygote64 webview_zygote webview_zygote64 usap64 usap32; do
         for pid in $(pidof "$name" 2>/dev/null); do
-            if bind_one "$pid"; then
-                mounted=$((mounted + 1))
-                echo "bound app namespace pid=$pid name=$name"
+            total=$((total + 1))
+            if verify_one "$pid" || bind_one "$pid"; then
+                if verify_one "$pid"; then
+                    bound=$((bound + 1))
+                    echo "bound app namespace pid=$pid name=$name"
+                fi
             fi
         done
     done
-    [ "$mounted" -ge 1 ] && break
-    sleep 1
-    waited=$((waited + 1))
-done
+    BUS_BOUND=$bound
+    BUS_TOTAL=$total
+}
 
-if [ "$mounted" -eq 0 ]; then
+# First pass while services are still starting: covers apps spawned early.
+bind_all_spawns
+echo "early bind: $BUS_BOUND/$BUS_TOTAL app spawn namespaces"
+
+wait_boot || exit 1
+
+# Second pass after boot: the spawn namespaces can be rebuilt during boot on this ROM.
+round=1
+while [ "$round" -le 6 ]; do
+    bind_all_spawns
+    echo "post-boot verify round=$round: $BUS_BOUND/$BUS_TOTAL"
+    [ "$BUS_BOUND" -ge 1 ] && [ "$BUS_BOUND" = "$BUS_TOTAL" ] && break
+    sleep 5
+    round=$((round + 1))
+done
+if [ "$BUS_BOUND" = 0 ]; then
     echo "STOP: no app spawn namespace could be bound"
     exit 1
 fi
@@ -78,14 +111,15 @@ fi
 [ "$(read_conf acq_replay)" = 0 ] || setprop debug.mesa.movecert.acq.replay true
 [ "$(read_conf afbc_align)" = 0 ] || setprop "$ALIGN_PROP" true
 
-# Verify the system processes stayed on the OEM driver.
-sp=$(pidof surfaceflinger)
-if [ -n "$sp" ]; then
-    system_hash=$("$bb" nsenter -t "$sp" -m -- sha256sum "$GPU_TARGET" 2>/dev/null)
-    case "$system_hash" in
-        "$OEM_SHA"\ *) echo "system namespace verified on OEM driver" ;;
-        *) echo "WARN: surfaceflinger namespace is not OEM: $system_hash" ;;
-    esac
+# For scope=apps, verify the system processes stayed on the OEM driver.
+if [ "$scope" = apps ]; then
+    sp=$(pidof surfaceflinger)
+    if [ -n "$sp" ]; then
+        system_hash=$("$bb" nsenter -t "$sp" -m -- sha256sum "$GPU_TARGET" 2>/dev/null)
+        case "$system_hash" in
+            "$OEM_SHA"\ *) echo "system namespace verified on OEM driver" ;;
+            *) echo "WARN: surfaceflinger namespace is not OEM: $system_hash" ;;
+        esac
+    fi
 fi
-echo "apps-scope mount complete; namespaces bound=$mounted"
-wait_boot
+echo "service bind complete: scope=$scope spawn namespaces=$BUS_BOUND/$BUS_TOTAL"

@@ -88,3 +88,18 @@ Vulkan 兼容性与性能，最后验证 SF `skiavkthreaded`。
   `movecert: image layout`、`movecert: layout init failed`、`movecert_queue_trace` 等）
   **全部不存在**，只保留 opt-in 属性名与 `forcing LINEAR`（仅属性开启时打印）；
 - 该版本为最终发布产物。
+
+## v1.1.2 打包修复（2026-10-21）
+
+v1.1.1 的模块 ZIP 漏打包了 `module/service.sh.orig`，导致 service 阶段执行到不存在的
+脚本、App 派生命名空间（zygote/usap）没有拿到 ICD；表现为 **KernelSU 开关看似打开、
+但微信等 App 仍映射 OEM 驱动**。此外模块有待更新未应用时，管理器开关不生效。
+
+修复与实机验证详见 [RELEASE-1.1.2.md](RELEASE-1.1.2.md)：
+
+- `service.sh.orig` 重新纳入打包，并增强为「先绑一次 + `boot_completed` 后校验重绑
+  zygote/zygote64/webview_zygote」，应对本机 zygote64 开机过程中重建命名空间；
+- 打包脚本强制要求 `service.sh.orig` 存在，修正驱动来源提交与 14 个实际补丁清单；
+- 实机结果：init / zygote / zygote64 / system_server / 微信 均映射
+  `5eb3899d…`，微信 vulkan 映射 4 段，本次开机无新增 ANR/tombstone；
+- 最终模块 ZIP：`PanVK-WSI7-PGKM10-v1.1.2.zip`。

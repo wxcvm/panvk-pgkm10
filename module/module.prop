@@ -1,6 +1,6 @@
 id=MTK_D8100_Vulkan1.4.Panvk
 name=Dimensity 8100 PanVK WSI7 (Vulkan only)
-version=1.1.1
-versionCode=13
+version=1.1.2
+versionCode=14
 author=wxcvm; upstream zenithblue-oss
-description=PanVK WSI7 1.1.1 FINAL (performance-clean) for PGKM10/Android 17. Same functional fixes as 1.1.0 (GPU-uncached imports for the SystemUI shareability fault, one-shot Android acquire replay for WeChat, AFBC YU10 Vulkan import, SurfaceFlinger skiavkthreaded support) but built without the bring-up diagnostics: diagnostic trace patches and per-image logging were removed, so image create/import hot paths no longer log to logcat. HWUI Vulkan stays disabled because ColorOS/Skia aborts on vendor 10-bit AHB. See docs/PERFORMANCE-REVIEW.md and docs/FINAL-REPORT.md.
+description=PanVK WSI7 1.1.2 FINAL (performance-clean, zygote namespace fix) for PGKM10/Android 17. Same driver as 1.1.1 (GPU-uncached imports for the SystemUI shareability fault, one-shot Android acquire replay for WeChat, AFBC YU10 Vulkan import) with two packaging fixes: service.sh.orig is shipped again, and scope=system now injects the ICD into the zygote app-spawn namespaces after boot_completed because this device's zygote64 rebuilds its mount namespace during boot. HWUI Vulkan stays disabled because ColorOS/Skia aborts on vendor 10-bit AHB. See docs/RELEASE-1.1.2.md and docs/FINAL-REPORT.md.
